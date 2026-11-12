@@ -5,6 +5,7 @@ ValidationError, so the rest of the code can trust what it receives.
 """
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,6 +34,7 @@ class Scenario(BaseModel):
     category: Category
     origin: str = Field(min_length=1)
     checks: list[str] = Field(min_length=1)
+    params: dict[str, Any] = Field(default_factory=dict)
     prompts: dict[Language, str]
 
     @field_validator("prompts")
@@ -43,6 +45,20 @@ class Scenario(BaseModel):
             names = ", ".join(sorted(lang.value for lang in missing))
             raise ValueError(f"missing prompts for languages: {names}")
         return value
+
+
+class Case(BaseModel):
+    """One scenario in one language: the smallest thing we send to a model."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)  # "{scenario_id}:{language}", e.g. "inj-001:ru"
+    scenario_id: str = Field(min_length=1)
+    language: Language
+    category: Category
+    prompt: str = Field(min_length=1)
+    checks: list[str] = Field(min_length=1)
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class Evidence(BaseModel):
