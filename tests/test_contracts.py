@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError
+
 from vespera.contracts import Evidence, Finding, Scenario
 
 # --- 1. Тесты для Scenario ---
