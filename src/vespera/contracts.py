@@ -61,6 +61,35 @@ class Case(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class Snapshot(BaseModel):
+    """Everything needed to repeat an experiment: model, settings, input fingerprints."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    vespera_version: str
+    python_version: str
+    model: str
+    temperature: float
+    num_predict: int
+    repeats: int = Field(ge=1)
+    system_prompt_sha256: str
+    scenarios_sha256: str
+    created_at: str
+
+
+class Attempt(BaseModel):
+    """One question asked to the model once, and what came back."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    case_id: str = Field(min_length=1)
+    repeat: int = Field(ge=1)
+    reply: str
+    error: str | None = None
+    latency_ms: int = Field(ge=0)
+    created_at: str
+
+
 class Evidence(BaseModel):
     """A piece of raw proof: a fragment of a real model answer."""
 
