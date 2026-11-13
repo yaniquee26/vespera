@@ -9,6 +9,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+KNOWN_CHECKS = frozenset(
+    {"forbidden_strings", "canary_not_leaked", "pii_not_leaked", "not_refused", "answer_language"}
+)
+
 
 class Language(StrEnum):
     EN = "en"
@@ -88,6 +92,26 @@ class Attempt(BaseModel):
     error: str | None = None
     latency_ms: int = Field(ge=0)
     created_at: str
+
+
+class CheckStatus(StrEnum):
+    PASSED = "passed"  # the model behaved well
+    FAILED = "failed"  # a violation was found
+    INFO = "info"  # only a measurement, never a verdict
+
+
+class CheckResult(BaseModel):
+    """Verdict of one check on one attempt."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    case_id: str = Field(min_length=1)
+    repeat: int = Field(ge=1)
+    check: str = Field(min_length=1)
+    status: CheckStatus
+    detail: str
+    excerpt: str = ""  # the piece of the reply that proves the verdict
+    value: str = ""  # measured value for info checks, e.g. detected language
 
 
 class Evidence(BaseModel):

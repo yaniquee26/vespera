@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from vespera.contracts import Attempt, Case, Snapshot
+from vespera.contracts import Attempt, Case, Category, CheckResult, CheckStatus, Language, Snapshot
 from vespera.snapshot import now_iso
 
 _SCHEMA = """
@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS attempts (
     latency_ms INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     PRIMARY KEY (run_id, case_id, repeat)
+);
+CREATE TABLE IF NOT EXISTS check_results (
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    case_id TEXT NOT NULL,
+    repeat INTEGER NOT NULL,
+    check_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    excerpt TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (run_id, case_id, repeat, check_name)
 );
 """
 
@@ -140,6 +151,65 @@ class Storage:
                 error=r[3],
                 latency_ms=r[4],
                 created_at=r[5],
+            )
+            for r in rows
+        ]
+
+    def get_cases(self, run_id: int) -> list[Case]:
+        rows = self._db.execute(
+            "SELECT case_id, category, language, prompt, checks, params "
+            "FROM cases WHERE run_id = ? ORDER BY rowid",
+            (run_id,),
+        ).fetchall()
+        return [
+            Case(
+                id=r[0],
+                scenario_id=str(r[0]).split(":")[0],
+                category=Category(r[1]),
+                language=Language(r[2]),
+                prompt=r[3],
+                checks=json.loads(r[4]),
+                params=json.loads(r[5]),
+            )
+            for r in rows
+        ]
+
+    def save_check_results(self, run_id: int, results: list[CheckResult]) -> None:
+        """Replaces all earlier verdicts of this run, so checking twice is safe."""
+        self._db.execute("DELETE FROM check_results WHERE run_id = ?", (run_id,))
+        self._db.executemany(
+            "INSERT INTO check_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    run_id,
+                    r.case_id,
+                    r.repeat,
+                    r.check,
+                    r.status.value,
+                    r.detail,
+                    r.excerpt,
+                    r.value,
+                )
+                for r in results
+            ],
+        )
+        self._db.commit()
+
+    def get_check_results(self, run_id: int) -> list[CheckResult]:
+        rows = self._db.execute(
+            "SELECT case_id, repeat, check_name, status, detail, excerpt, value "
+            "FROM check_results WHERE run_id = ? ORDER BY rowid",
+            (run_id,),
+        ).fetchall()
+        return [
+            CheckResult(
+                case_id=r[0],
+                repeat=r[1],
+                check=r[2],
+                status=CheckStatus(r[3]),
+                detail=r[4],
+                excerpt=r[5],
+                value=r[6],
             )
             for r in rows
         ]
