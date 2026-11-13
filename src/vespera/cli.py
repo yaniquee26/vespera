@@ -7,13 +7,15 @@ from typing import Annotated
 import typer
 
 from vespera import __version__
+from vespera.checks import CheckConfigError, run_checks
 from vespera.contracts import Category
 from vespera.doctor import all_required_ok, run_all
 from vespera.providers import BaseProvider, MockProvider, OllamaProvider, ProviderError
 from vespera.runner import RunAborted, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
-from vespera.snapshot import build_snapshot
+from vespera.snapshot import build_snapshot, sha256_text
 from vespera.storage import Storage
+from vespera.summary import summarize
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
 
@@ -171,5 +173,59 @@ def show(
             typer.echo(
                 f"{attempt.case_id} #{attempt.repeat} ({attempt.latency_ms} ms): {one_line}"
             )
+    finally:
+        storage.close()
+
+
+@app.command()
+def check(
+    run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    system_prompt: Annotated[Path, typer.Option(help="System prompt file.")] = Path(
+        "system_prompt.txt"
+    ),
+) -> None:
+    """Run the automatic checks on a saved run and print what the model got wrong."""
+    storage = Storage(db)
+    try:
+        chosen = run_id if run_id is not None else storage.latest_run_id()
+        if chosen is None or not storage.run_exists(chosen):
+            typer.echo("[FAIL] no such run")
+            raise typer.Exit(code=1)
+        try:
+            system_text = system_prompt.read_text(encoding="utf-8")
+        except OSError as exc:
+            typer.echo(f"[FAIL] cannot read {system_prompt}: {exc}")
+            raise typer.Exit(code=1) from exc
+        snapshot = storage.get_snapshot(chosen)
+        if sha256_text(system_text) != snapshot.system_prompt_sha256:
+            typer.echo("[FAIL] the system prompt differs from the one used in this run")
+            raise typer.Exit(code=1)
+
+        cases = storage.get_cases(chosen)
+        try:
+            results = run_checks(cases, storage.get_attempts(chosen), system_text)
+        except CheckConfigError as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+        storage.save_check_results(chosen, results)
+
+        summary = summarize(cases, results)
+        attempts_checked = sum(item.attempts for item in summary.categories)
+        typer.echo(f"Checked run {chosen} (model {snapshot.model}): {attempts_checked} judged")
+        for item in summary.categories:
+            label = f"{item.violations} / {item.attempts}"
+            typer.echo(f"  {item.category.value:<20} violations {label}")
+        total = summary.language_known
+        typer.echo(
+            f"Reply language matched the prompt language: {summary.language_matches} / {total} "
+            f"({summary.language_unknown} undetermined, information only)"
+        )
+        if summary.violations:
+            typer.echo("Violations:")
+            for v in summary.violations:
+                typer.echo(f"  {v.case_id} #{v.repeat} [{v.check}] {v.detail}")
+                typer.echo(f"      > {v.excerpt}")
+        typer.echo(f"[OK] verdicts saved to {db}")
     finally:
         storage.close()
