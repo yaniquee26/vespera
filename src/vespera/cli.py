@@ -11,6 +11,7 @@ from vespera.checks import CheckConfigError, run_checks
 from vespera.contracts import Category
 from vespera.doctor import all_required_ok, run_all
 from vespera.providers import BaseProvider, MockProvider, OllamaProvider, ProviderError
+from vespera.report import ReportError, build_report, render_html
 from vespera.runner import RunAborted, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
 from vespera.snapshot import build_snapshot, sha256_text
@@ -229,3 +230,29 @@ def check(
         typer.echo(f"[OK] verdicts saved to {db}")
     finally:
         storage.close()
+
+
+@app.command()
+def report(
+    run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    out: Annotated[Path | None, typer.Option(help="Where to write the HTML page.")] = None,
+) -> None:
+    """Build a single HTML report page for a run (run `vespera check` first)."""
+    storage = Storage(db)
+    try:
+        chosen = run_id if run_id is not None else storage.latest_run_id()
+        if chosen is None:
+            typer.echo("[FAIL] no runs in the database")
+            raise typer.Exit(code=1)
+        try:
+            html = render_html(build_report(storage, chosen))
+        except ReportError as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+    finally:
+        storage.close()
+    target = out or db.parent / f"report-run-{chosen}.html"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(html, encoding="utf-8")
+    typer.echo(f"[OK] report written to {target}. Open it in a browser.")

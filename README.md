@@ -5,7 +5,7 @@
 Evidence-based reliability testing for language models in Russian, Romanian and English.
 Runs locally on Ollama, nothing leaves your machine.
 
-Status: early development (v0.3: run scenarios on a local model and check the answers). See `SPEC.md` for the design and `TASKS.md` for the plan.
+Status: early development (v0.5: run, check, statistics and an HTML report with proof). See `SPEC.md` for the design and `TASKS.md` for the plan.
 
 ## Development setup (Windows, PowerShell)
 
@@ -27,6 +27,7 @@ vespera run --limit 6          # ask the first 6 cases to a local Ollama model
 vespera run                    # ask all cases (default model: gemma3:4b)
 vespera show                   # print the saved answers of the latest run
 vespera check                  # find violations in the latest run
+vespera report                 # build a single HTML report page (open it in a browser)
 ```
 
 `vespera run --mock` uses a fake model, so everything can be tried without a GPU.
