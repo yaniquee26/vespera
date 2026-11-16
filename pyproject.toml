@@ -4,9 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vespera"
-version = "0.1.0"
+version = "0.2.0"
 description = "Evidence-based reliability testing for LLMs in Russian, Romanian and English"
 readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Ian Barda" }]
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",
@@ -30,6 +32,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+vespera = ["data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

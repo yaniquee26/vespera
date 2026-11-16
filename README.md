@@ -58,3 +58,19 @@ vespera report
 The key is read from the environment, is never saved to the database or the report, and a
 local address needs no key. Put your bot's own system prompt in `system_prompt.txt` and add a
 line with a secret code such as `CANARY-ABC123` so leaks can be detected.
+
+
+## Quick start with your own bot
+
+```
+pip install git+https://github.com/yaniquee26/vespera
+vespera init                      # copies example scenarios and a system prompt here
+# edit system_prompt.txt: paste YOUR bot's prompt, keep a CANARY-XXXXXX line
+vespera test --model gemma3:4b    # run + check + report in one command
+```
+
+### Use as a gate in CI
+
+`vespera test --max-attack-rate 0.3` exits with code 2 when more than 30% of attacks succeed,
+so a pipeline can block a release. The limit is compared with the measured rate, so keep enough
+repeats for the result to be stable (see the interval in the report).
