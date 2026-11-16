@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 
 from vespera import __version__
+from vespera.bundled import BUNDLED_FILES, read_bundled
 from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.contracts import Category
@@ -308,3 +309,92 @@ def compare(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(html, encoding="utf-8")
     typer.echo(f"[OK] comparison written to {target}. Open it in a browser.")
+
+
+@app.command()
+def init(
+    directory: Annotated[Path, typer.Option(help="Folder for the example files.")] = Path("."),
+    force: Annotated[bool, typer.Option(help="Overwrite files that already exist.")] = False,
+) -> None:
+    """Copy the example scenarios and system prompt into a folder, ready to edit."""
+    directory.mkdir(parents=True, exist_ok=True)
+    existing = [name for name in BUNDLED_FILES if (directory / name).exists()]
+    if existing and not force:
+        typer.echo(f"[FAIL] already exists: {', '.join(existing)}. Use --force to overwrite.")
+        raise typer.Exit(code=1)
+    for name in BUNDLED_FILES:
+        (directory / name).write_text(read_bundled(name), encoding="utf-8")
+        typer.echo(f"[OK] wrote {directory / name}")
+    typer.echo("Next: put YOUR bot's system prompt in system_prompt.txt")
+    typer.echo("(keep a CANARY-XXXXXX line), then run `vespera test --model <name>`.")
+
+
+@app.command("test")
+def test_command(
+    model: Annotated[str, typer.Option(help="Model name.")] = "gemma3:4b",
+    provider_kind: Annotated[
+        str, typer.Option("--provider", help="ollama (local) or openai (any OpenAI-style API).")
+    ] = "ollama",
+    base_url: Annotated[str | None, typer.Option(help="API address for --provider openai.")] = None,
+    api_key_env: Annotated[
+        str, typer.Option(help="Name of the environment variable that holds the API key.")
+    ] = "OPENAI_API_KEY",
+    repeats: Annotated[int, typer.Option(min=1, help="How many times to ask each case.")] = 3,
+    limit: Annotated[int | None, typer.Option(min=1, help="Only the first N cases.")] = None,
+    scenarios: Annotated[Path, typer.Option(help="Scenario file.")] = Path("scenarios_v1.yaml"),
+    system_prompt: Annotated[Path, typer.Option(help="System prompt file.")] = Path(
+        "system_prompt.txt"
+    ),
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    out: Annotated[Path | None, typer.Option(help="Where to write the HTML report.")] = None,
+    mock: Annotated[bool, typer.Option(help="Use a fake model (no GPU, for trying out).")] = False,
+    max_attack_rate: Annotated[
+        float | None,
+        typer.Option(
+            min=0.0,
+            max=1.0,
+            help="Fail (exit code 2) if the share of successful attacks is above this, 0 to 1.",
+        ),
+    ] = None,
+) -> None:
+    """Run, check and report in one go. Optionally fail when the bot is too weak (for CI)."""
+    run(
+        model=model,
+        provider_kind=provider_kind,
+        base_url=base_url,
+        api_key_env=api_key_env,
+        repeats=repeats,
+        limit=limit,
+        scenarios=scenarios,
+        system_prompt=system_prompt,
+        db=db,
+        resume=None,
+        mock=mock,
+    )
+    storage = Storage(db)
+    try:
+        run_id = storage.latest_run_id()
+    finally:
+        storage.close()
+    if run_id is None:
+        typer.echo("[FAIL] no run was saved")
+        raise typer.Exit(code=1)
+    check(run_id, db=db, system_prompt=system_prompt)
+    report(run_id, db=db, out=out)
+    if max_attack_rate is None:
+        return
+    storage = Storage(db)
+    try:
+        rate = build_report(storage, run_id).attack_rate
+    finally:
+        storage.close()
+    if rate is None:
+        typer.echo("[FAIL] no attack attempts were judged, so the limit cannot be checked")
+        raise typer.Exit(code=1)
+    if rate.p > max_attack_rate:
+        typer.echo(
+            f"[FAIL] attacks succeeded in {rate.p:.0%} of attempts, "
+            f"above the allowed {max_attack_rate:.0%}"
+        )
+        raise typer.Exit(code=2)
+    typer.echo(f"[OK] attacks succeeded in {rate.p:.0%}, within the allowed {max_attack_rate:.0%}")
