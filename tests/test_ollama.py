@@ -54,6 +54,12 @@ def test_server_error_becomes_provider_error() -> None:
         provider.generate("s", "u")
 
 
+def test_missing_model_tells_the_user_how_to_install_it() -> None:
+    provider = make_provider(httpx.MockTransport(lambda r: httpx.Response(404)))
+    with pytest.raises(ProviderError, match="ollama pull gemma3:4b"):
+        provider.generate("s", "u")
+
+
 def test_unexpected_reply_shape_becomes_provider_error() -> None:
     provider = make_provider(httpx.MockTransport(lambda r: httpx.Response(200, json={"oops": 1})))
     with pytest.raises(ProviderError):

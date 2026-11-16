@@ -8,6 +8,7 @@ import typer
 
 from vespera import __version__
 from vespera.checks import CheckConfigError, run_checks
+from vespera.compare import build_comparison, render_comparison_html
 from vespera.contracts import Category
 from vespera.doctor import all_required_ok, run_all
 from vespera.providers import BaseProvider, MockProvider, OllamaProvider, ProviderError
@@ -256,3 +257,26 @@ def report(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(html, encoding="utf-8")
     typer.echo(f"[OK] report written to {target}. Open it in a browser.")
+
+
+@app.command()
+def compare(
+    run_a: Annotated[int, typer.Argument(help="Id of the first run (model A).")],
+    run_b: Annotated[int, typer.Argument(help="Id of the second run (model B).")],
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    out: Annotated[Path | None, typer.Option(help="Where to write the HTML page.")] = None,
+) -> None:
+    """Compare two checked runs (same questions, two models) on one HTML page."""
+    storage = Storage(db)
+    try:
+        try:
+            html = render_comparison_html(build_comparison(storage, run_a, run_b))
+        except ReportError as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+    finally:
+        storage.close()
+    target = out or db.parent / f"compare-run-{run_a}-vs-{run_b}.html"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(html, encoding="utf-8")
+    typer.echo(f"[OK] comparison written to {target}. Open it in a browser.")

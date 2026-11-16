@@ -74,6 +74,13 @@ class OllamaProvider(BaseProvider):
             response = self._client.post("/api/chat", json=payload)
             response.raise_for_status()
             content = response.json()["message"]["content"]
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                raise ProviderError(
+                    f"model '{self.model}' is not installed in Ollama: "
+                    f"run `ollama pull {self.model}`"
+                ) from exc
+            raise ProviderError(f"Ollama request failed: {exc}") from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"Ollama request failed: {exc}") from exc
         except (KeyError, TypeError, ValueError) as exc:

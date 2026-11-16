@@ -44,7 +44,8 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/vespera/report_template.py" = ["E501"]  # an HTML template, not code
+"src/vespera/report_template.py" = ["E501"]
+"src/vespera/compare_template.py" = ["E501"]  # an HTML template, not code
 
 [tool.mypy]
 python_version = "3.12"
