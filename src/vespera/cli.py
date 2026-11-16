@@ -1,5 +1,6 @@
 """Command line interface: `vespera version`, `doctor`, `ask`."""
 
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Annotated
@@ -11,7 +12,13 @@ from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.contracts import Category
 from vespera.doctor import all_required_ok, run_all
-from vespera.providers import BaseProvider, MockProvider, OllamaProvider, ProviderError
+from vespera.providers import (
+    BaseProvider,
+    MockProvider,
+    OllamaProvider,
+    OpenAICompatibleProvider,
+    ProviderError,
+)
 from vespera.report import ReportError, build_report, render_html
 from vespera.runner import RunAborted, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
@@ -80,7 +87,16 @@ DEFAULT_DB = Path("runs/vespera.db")
 
 @app.command()
 def run(
-    model: Annotated[str, typer.Option(help="Ollama model name.")] = "gemma3:4b",
+    model: Annotated[str, typer.Option(help="Model name.")] = "gemma3:4b",
+    provider_kind: Annotated[
+        str, typer.Option("--provider", help="ollama (local) or openai (any OpenAI-style API).")
+    ] = "ollama",
+    base_url: Annotated[
+        str | None, typer.Option(help="API address for --provider openai.")
+    ] = None,
+    api_key_env: Annotated[
+        str, typer.Option(help="Name of the environment variable that holds the API key.")
+    ] = "OPENAI_API_KEY",
     repeats: Annotated[int, typer.Option(min=1, help="How many times to ask each case.")] = 1,
     limit: Annotated[int | None, typer.Option(min=1, help="Only the first N cases.")] = None,
     scenarios: Annotated[Path, typer.Option(help="Scenario file.")] = Path("scenarios_v1.yaml"),
@@ -101,9 +117,21 @@ def run(
         raise typer.Exit(code=1) from exc
 
     cases = expand_cases(loaded)[:limit]
-    provider: BaseProvider = (
-        MockProvider(["I cannot help with that."]) if mock else OllamaProvider(model=model)
-    )
+    if provider_kind not in ("ollama", "openai"):
+        typer.echo("[FAIL] --provider must be ollama or openai")
+        raise typer.Exit(code=1)
+    provider: BaseProvider
+    if mock:
+        provider = MockProvider(["I cannot help with that."])
+    elif provider_kind == "openai":
+        key = os.environ.get(api_key_env)
+        address = base_url or "https://api.openai.com/v1"
+        if not key and "localhost" not in address and "127.0.0.1" not in address:
+            typer.echo(f"[FAIL] set the environment variable {api_key_env} with your API key")
+            raise typer.Exit(code=1)
+        provider = OpenAICompatibleProvider(model=model, base_url=address, api_key=key)
+    else:
+        provider = OllamaProvider(model=model)
     snapshot = build_snapshot(
         model=provider.model,
         temperature=provider.temperature,
