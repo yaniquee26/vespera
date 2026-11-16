@@ -88,3 +88,67 @@ class OllamaProvider(BaseProvider):
         if not isinstance(content, str):
             raise ProviderError("Ollama returned an unexpected reply")
         return content
+
+
+class OpenAICompatibleProvider(BaseProvider):
+    """Talks to any server with the OpenAI chat API: OpenAI, OpenRouter, LM Studio, vLLM, Ollama.
+
+    The API key is passed in, never stored: it does not reach the database or the report.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "https://api.openai.com/v1",
+        *,
+        api_key: str | None = None,
+        num_predict: int = 200,
+        temperature: float = 0.7,
+        timeout: float = 120.0,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.model = model
+        self.num_predict = num_predict
+        self.temperature = temperature
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self._client = client or httpx.Client(
+            base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
+        )
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.num_predict,
+            "stream": False,
+        }
+        try:
+            response = self._client.post("/chat/completions", json=payload)
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as exc:
+            raise ProviderError(_explain_http_error(self.model, exc.response.status_code)) from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"request to the model server failed: {exc}") from exc
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderError("the server returned an unexpected reply") from exc
+        if not isinstance(content, str):
+            raise ProviderError("the server returned an empty or unexpected reply")
+        return content
+
+
+def _explain_http_error(model: str, status: int) -> str:
+    if status in (401, 403):
+        return f"the server refused the API key (HTTP {status}): check the key and its rights"
+    if status == 404:
+        return (
+            f"model '{model}' or the address was not found (HTTP 404): "
+            "check --model and --base-url"
+        )
+    if status == 429:
+        return "too many requests or no credit left (HTTP 429): wait or check the account"
+    return f"the server answered with an error (HTTP {status})"
