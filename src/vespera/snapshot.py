@@ -24,6 +24,7 @@ def build_snapshot(
     repeats: int,
     system_prompt: str,
     scenarios_text: str,
+    max_steps: int | None = None,
 ) -> Snapshot:
     return Snapshot(
         vespera_version=__version__,
@@ -35,4 +36,5 @@ def build_snapshot(
         system_prompt_sha256=sha256_text(system_prompt),
         scenarios_sha256=sha256_text(scenarios_text),
         created_at=now_iso(),
+        max_steps=max_steps,
     )

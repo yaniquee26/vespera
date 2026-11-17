@@ -33,6 +33,12 @@ def _check_rules(scenario: AgentScenario) -> None:
             raise ScenarioFileError(
                 f"scenario {scenario.id}: params.tool must be one of this scenario's tools"
             )
+    if "arg_contains" in scenario.params and not _non_empty_strings(
+        scenario.params["arg_contains"]
+    ):
+        raise ScenarioFileError(
+            f"scenario {scenario.id}: params.arg_contains must be a non-empty list of strings"
+        )
     if "secret_not_in_tool_args" in scenario.checks and not _non_empty_strings(
         scenario.params.get("secrets")
     ):

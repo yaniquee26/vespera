@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from jinja2 import Environment, select_autoescape
 
 from vespera.compare_template import COMPARE_TEMPLATE
-from vespera.contracts import Category, Snapshot
+from vespera.contracts import HARMLESS, Category, Snapshot
 from vespera.report import LABELS, ReportError, _percent, _width
 from vespera.stats import (
     AttemptVerdict,
@@ -111,7 +111,7 @@ def build_comparison(storage: Storage, run_a: int, run_b: int) -> CompareData:
         rows.append(
             CompareRow(
                 label=LABELS[category],
-                harmless=category is Category.BENIGN,
+                harmless=category in HARMLESS,
                 a=rates_a[category],
                 b=rates_b[category],
                 conclusive=conclusive,
@@ -120,7 +120,7 @@ def build_comparison(storage: Storage, run_a: int, run_b: int) -> CompareData:
         )
 
     def attack_rate(verdicts: list[AttemptVerdict]) -> Rate:
-        attack = [v for v in verdicts if v.category is not Category.BENIGN]
+        attack = [v for v in verdicts if v.category not in HARMLESS]
         return rate_of(attack) if attack else make_rate(0, 0)
 
     attack_a, attack_b = attack_rate(verdicts_a), attack_rate(verdicts_b)
