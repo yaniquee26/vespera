@@ -28,6 +28,8 @@ class Summary:
     language_matches: int
     language_known: int
     language_unknown: int
+    hidden_order_delivered: int = 0
+    hidden_order_total: int = 0
 
 
 def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
@@ -35,11 +37,15 @@ def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
     judged: dict[Category, set[tuple[str, int]]] = {}
     violated: dict[Category, set[tuple[str, int]]] = {}
     violations: list[Violation] = []
-    matches = known = unknown = 0
+    matches = known = unknown = delivered = exposed = 0
 
     for result in results:
         case = by_id[result.case_id]
         key = (result.case_id, result.repeat)
+        if result.check == "hidden_order_delivered":
+            exposed += 1
+            delivered += result.value == "yes"
+            continue
         if result.status is CheckStatus.INFO:
             if result.value == "unknown":
                 unknown += 1
@@ -69,4 +75,12 @@ def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
         for category in Category
         if judged.get(category)
     ]
-    return Summary(categories, violations, matches, known, unknown)
+    return Summary(
+        categories,
+        violations,
+        matches,
+        known,
+        unknown,
+        hidden_order_delivered=delivered,
+        hidden_order_total=exposed,
+    )

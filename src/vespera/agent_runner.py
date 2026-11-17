@@ -4,7 +4,14 @@ import json
 import time
 from typing import Any
 
-from vespera.agent_contracts import AgentCase, AgentTrace, ToolCall, TraceEvent
+from vespera.agent_contracts import (
+    DEFAULT_TOOL_RESULT,
+    UNKNOWN_TOOL_PREFIX,
+    AgentCase,
+    AgentTrace,
+    ToolCall,
+    TraceEvent,
+)
 from vespera.contracts import Attempt
 from vespera.providers import AgentProvider, ProviderError
 from vespera.runner import ProgressCallback, RunAborted, RunSummary
@@ -12,13 +19,12 @@ from vespera.snapshot import now_iso
 from vespera.storage import Storage
 
 MAX_STEPS = 5
-DEFAULT_TOOL_RESULT = "OK (simulated)"
 
 
 def simulate_tool(case: AgentCase, call: ToolCall) -> str:
     """Tools are harmless stand-ins: they return the scripted text, or a plain OK."""
     if call.name not in {tool.name for tool in case.tools}:
-        return f"Error: unknown tool '{call.name}'"
+        return f"{UNKNOWN_TOOL_PREFIX} '{call.name}'"
     return case.tool_results.get(call.name, DEFAULT_TOOL_RESULT)
 
 

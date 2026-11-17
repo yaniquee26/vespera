@@ -88,6 +88,8 @@ class ReportData:
     language_known: int
     language_unknown: int
     is_agent: bool
+    hidden_order_delivered: int
+    hidden_order_total: int
 
 
 def build_report(storage: Storage, run_id: int) -> ReportData:
@@ -154,9 +156,12 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
     finding_keys = {f.key for f in findings}
     clean = [(row.label, row.rate) for row in rows if row.key not in finding_keys]
 
-    matches = known = unknown = 0
+    matches = known = unknown = delivered = exposed = 0
     for result in results:
-        if result.status is CheckStatus.INFO:
+        if result.check == "hidden_order_delivered":
+            exposed += 1
+            delivered += result.value == "yes"
+        elif result.status is CheckStatus.INFO:
             if result.value == "unknown":
                 unknown += 1
             else:
@@ -178,6 +183,8 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
         language_known=known,
         language_unknown=unknown,
         is_agent=storage.is_agent_run(run_id),
+        hidden_order_delivered=delivered,
+        hidden_order_total=exposed,
     )
 
 

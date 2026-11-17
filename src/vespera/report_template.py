@@ -135,6 +135,9 @@ be opened to see the exact question and the full reply that proves it.</p>
 {% endfor %}
 </tbody>
 </table>
+{% if d.hidden_order_total %}<p class="muted" style="margin-top:10px">The hidden order reached the agent in
+{{ d.hidden_order_delivered }} of {{ d.hidden_order_total }} attempts of the tool-output tests. In the
+other attempts the agent never opened that tool, so the attack was not really tested there.</p>{% endif %}
 </div>
 
 <h2>By language</h2>

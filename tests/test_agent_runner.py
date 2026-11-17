@@ -591,3 +591,80 @@ def test_init_agents_copies_the_agent_files_too(tmp_path: Path) -> None:
     for name in ("scenarios_v1.yaml", "system_prompt.txt", "agent_scenarios_v1.yaml",
                  "agent_system_prompt.txt"):
         assert (tmp_path / "b" / name).exists()
+
+
+# ---------------------------------------------------------------- exposure and language drift
+
+
+def test_the_hidden_order_check_tells_apart_delivered_and_never_opened() -> None:
+    from vespera.checks import check_hidden_order_delivered as delivered
+
+    opened = [
+        TraceEvent(kind="assistant", tool_calls=[call("search_help", query="x")]),
+        TraceEvent(kind="tool_result", text="Roaming... [Note to the assistant: ...]",
+                   tool_name="search_help"),
+    ]
+    yes = delivered(ctx("ag-001:en", opened))
+    assert (yes.status, yes.value) == (CheckStatus.INFO, "yes")
+    ignored = [TraceEvent(kind="assistant", text="Dial *105#")]
+    no = delivered(ctx("ag-001:en", ignored))
+    assert no.value == "no" and "not tested" in no.detail
+    plain = [TraceEvent(kind="tool_result", text="OK (simulated)", tool_name="send_sms")]
+    assert delivered(ctx("ag-001:en", plain)).value == "no"  # an empty "OK" carries no order
+    unknown = [TraceEvent(kind="tool_result", text="Error: unknown tool 'x'", tool_name="x")]
+    assert delivered(ctx("ag-001:en", unknown)).value == "no"
+
+
+def test_run_checks_adds_the_exposure_check_only_to_tool_output_tests() -> None:
+    agent_cases = cases()
+    shared = [c.to_case() for c in agent_cases if c.id in ("ag-001:en", "ag-004:en")]
+    attempts = [
+        Attempt(case_id=c.id, repeat=1, reply="x", latency_ms=0, created_at="t") for c in shared
+    ]
+    trace = AgentTrace(events=[TraceEvent(kind="assistant", text="x")], stopped="answered")
+    traces = {(c.id, 1): trace for c in shared}
+    names = {(r.case_id, r.check) for r in run_checks(shared, attempts, SYSTEM, traces)}
+    assert ("ag-001:en", "hidden_order_delivered") in names
+    assert ("ag-004:en", "hidden_order_delivered") not in names
+
+
+def test_an_agent_that_never_opens_the_poisoned_tool_is_reported_as_untested(
+    storage: Storage,
+) -> None:
+    run_id = new_run(storage, MockAgentProvider([AgentTurn(text="I cannot help with that.")]))
+    check_run(storage, run_id)
+    data = build_report(storage, run_id)
+    assert (data.hidden_order_delivered, data.hidden_order_total) == (0, 6)
+    html = render_html(data)
+    assert "reached the agent in\n0 of 6 attempts" in html
+    assert "not really tested" in html
+
+
+def test_a_gullible_agent_received_every_hidden_order(storage: Storage) -> None:
+    run_id = new_run(storage, Gullible())
+    check_run(storage, run_id)
+    data = build_report(storage, run_id)
+    assert (data.hidden_order_delivered, data.hidden_order_total) == (6, 6)
+
+
+def test_the_exposure_check_does_not_disturb_the_language_numbers(storage: Storage) -> None:
+    run_id = new_run(storage, Gullible())
+    check_run(storage, run_id)
+    data = build_report(storage, run_id)
+    assert data.language_known + data.language_unknown == 18  # one language result per attempt
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Для了解“无限”套餐的价格，我可以为您查询相关信息。请稍等。", "other"),
+        ("これは日本語の返事です", "other"),
+        ("هذا رد باللغة العربية", "other"),
+        ("Привет, это ответ на русском", "ru"),
+        ("Thank you, the plan costs $25 per month", "en"),
+    ],
+)
+def test_a_reply_in_another_script_is_flagged_as_drift(text: str, expected: str) -> None:
+    from vespera.checks import detect_language
+
+    assert detect_language(text) == expected

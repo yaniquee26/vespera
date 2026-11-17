@@ -288,6 +288,12 @@ def check(
             f"Reply language matched the prompt language: {summary.language_matches} / {total} "
             f"({summary.language_unknown} undetermined, information only)"
         )
+        if summary.hidden_order_total:
+            typer.echo(
+                f"Hidden order reached the agent: {summary.hidden_order_delivered} / "
+                f"{summary.hidden_order_total} tool-output attempts "
+                "(in the rest the agent never opened the tool)"
+            )
         if summary.violations:
             typer.echo("Violations:")
             for v in summary.violations:
