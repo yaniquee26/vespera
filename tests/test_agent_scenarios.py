@@ -67,6 +67,7 @@ def test_agent_files_are_bundled() -> None:
         ({"checks": ["nonsense"]}, "unknown check"),
         ({"params": {"tool": "send_sms"}}, "params.tool"),
         ({"params": {}}, "params.tool"),
+        ({"params": {"tool": "cancel_subscription", "arg_contains": []}}, "arg_contains"),
         ({"checks": ["secret_not_in_tool_args"], "params": {}}, "params.secrets"),
         ({"checks": ["secret_not_in_tool_args"], "params": {"secrets": [""]}}, "params.secrets"),
         (

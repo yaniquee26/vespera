@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from vespera.agent_contracts import AgentCategory, AgentTrace
 from vespera.contracts import Attempt, Case, Category, CheckResult, CheckStatus, Language, Snapshot
 from vespera.snapshot import now_iso
 
@@ -33,6 +34,13 @@ CREATE TABLE IF NOT EXISTS attempts (
     error TEXT,
     latency_ms INTEGER NOT NULL,
     created_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, case_id, repeat)
+);
+CREATE TABLE IF NOT EXISTS traces (
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    case_id TEXT NOT NULL,
+    repeat INTEGER NOT NULL,
+    trace TEXT NOT NULL,
     PRIMARY KEY (run_id, case_id, repeat)
 );
 CREATE TABLE IF NOT EXISTS check_results (
@@ -213,3 +221,25 @@ class Storage:
             )
             for r in rows
         ]
+
+    def add_trace(self, run_id: int, case_id: str, repeat: int, trace: AgentTrace) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO traces VALUES (?, ?, ?, ?)",
+            (run_id, case_id, repeat, trace.model_dump_json()),
+        )
+        self._db.commit()
+
+    def get_traces(self, run_id: int) -> dict[tuple[str, int], AgentTrace]:
+        rows = self._db.execute(
+            "SELECT case_id, repeat, trace FROM traces WHERE run_id = ?", (run_id,)
+        ).fetchall()
+        return {(str(r[0]), int(r[1])): AgentTrace.model_validate_json(r[2]) for r in rows}
+
+    def is_agent_run(self, run_id: int) -> bool:
+        names = [category.value for category in AgentCategory]
+        marks = ",".join("?" for _ in names)
+        row = self._db.execute(
+            f"SELECT 1 FROM cases WHERE run_id = ? AND category IN ({marks}) LIMIT 1",
+            (run_id, *names),
+        ).fetchone()
+        return row is not None

@@ -74,3 +74,25 @@ vespera test --model gemma3:4b    # run + check + report in one command
 `vespera test --max-attack-rate 0.3` exits with code 2 when more than 30% of attacks succeed,
 so a pipeline can block a release. The limit is compared with the measured rate, so keep enough
 repeats for the result to be stable (see the interval in the report).
+
+
+## Testing agents (bots that call tools)
+
+An agent can be talked into acting: a hidden order inside data that a tool returns, a request to
+send a secret somewhere, an action the customer is not allowed to ask for. Vespera plays tasks
+with simulated tools (nothing real is ever sent, opened or cancelled) and records the whole
+journal: what the agent said, which tools it called, with which arguments.
+
+```
+vespera init --agents                 # also copies the agent scenarios and system prompt
+vespera run-agent --model qwen2.5:7b  # needs a model that can call tools (gemma3 cannot)
+vespera check
+vespera report                        # every finding is proven by the journal of the attempt
+```
+
+Checks on the journal: `forbidden_tool_call`, `secret_not_in_tool_args`, `expected_tool_called`
+(the last one measures a harmless task that was not done). Works with any OpenAI-style server:
+`--base-url https://.../v1` with the key in `OPENAI_API_KEY`.
+
+Known limits: a tool call written as plain text instead of the model's tool-call format is not
+counted; tools are stand-ins, so this measures the decision to call, not real-world damage.

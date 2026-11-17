@@ -1,9 +1,13 @@
 """Model providers: unified interface between Vespera and any LLM."""
 
+import json
 from abc import ABC, abstractmethod
 from itertools import cycle
+from typing import Any
 
 import httpx
+
+from vespera.agent_contracts import AgentTurn, ToolCall, ToolSpec
 
 
 class BaseProvider(ABC):
@@ -152,3 +156,126 @@ def _explain_http_error(model: str, status: int) -> str:
     if status == 429:
         return "too many requests or no credit left (HTTP 429): wait or check the account"
     return f"the server answered with an error (HTTP {status})"
+
+
+class AgentProvider(ABC):
+    """A model that can ask for tools. Messages use the OpenAI chat format."""
+
+    model: str
+    temperature: float
+    num_predict: int
+
+    @abstractmethod
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        """Send the conversation so far and return the model's next turn."""
+
+
+class MockAgentProvider(AgentProvider):
+    """Plays a fixed list of turns, over and over. For tests and for trying out without a GPU."""
+
+    def __init__(self, turns: list[AgentTurn]) -> None:
+        if not turns:
+            raise ValueError("MockAgentProvider requires at least one turn")
+        self._turns = cycle(tuple(turns))
+        self.model = "mock"
+        self.temperature = 0.0
+        self.num_predict = 0
+        self.calls: list[tuple[list[dict[str, Any]], list[ToolSpec]]] = []
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        self.calls.append(([dict(m) for m in messages], list(tools)))
+        return next(self._turns)
+
+
+def tool_schema(tool: ToolSpec) -> dict[str, Any]:
+    properties = {
+        name: {"type": "string", "description": meaning}
+        for name, meaning in tool.parameters.items()
+    }
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": list(tool.parameters),
+            },
+        },
+    }
+
+
+def parse_agent_turn(data: Any) -> AgentTurn:
+    """Read one OpenAI-style reply. Raises KeyError, TypeError or ValueError when malformed."""
+    message = data["choices"][0]["message"]
+    content = message.get("content") or ""
+    if not isinstance(content, str):
+        raise TypeError("content is not text")
+    calls: list[ToolCall] = []
+    for index, raw in enumerate(message.get("tool_calls") or []):
+        function = raw["function"]
+        arguments = function.get("arguments") or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                arguments = {"_raw": arguments}
+        if not isinstance(arguments, dict):
+            arguments = {"_raw": str(arguments)}
+        calls.append(
+            ToolCall(
+                id=str(raw.get("id") or f"call_{index}"),
+                name=function["name"],
+                arguments=arguments,
+            )
+        )
+    return AgentTurn(text=content, tool_calls=calls)
+
+
+class OpenAICompatibleAgentProvider(AgentProvider):
+    """Agent conversations with any OpenAI-style server that supports tools (also Ollama /v1)."""
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "http://localhost:11434/v1",
+        *,
+        api_key: str | None = None,
+        num_predict: int = 300,
+        temperature: float = 0.7,
+        timeout: float = 180.0,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.model = model
+        self.num_predict = num_predict
+        self.temperature = temperature
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self._client = client or httpx.Client(
+            base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
+        )
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "tools": [tool_schema(tool) for tool in tools],
+            "temperature": self.temperature,
+            "max_tokens": self.num_predict,
+            "stream": False,
+        }
+        try:
+            response = self._client.post("/chat/completions", json=payload)
+            response.raise_for_status()
+            return parse_agent_turn(response.json())
+        except httpx.HTTPStatusError as exc:
+            if "does not support tools" in exc.response.text:
+                raise ProviderError(
+                    f"model '{self.model}' does not support tools: use a model that can call "
+                    "tools, for example qwen2.5:7b"
+                ) from exc
+            raise ProviderError(_explain_http_error(self.model, exc.response.status_code)) from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"request to the model server failed: {exc}") from exc
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderError("the server returned an unexpected reply") from exc

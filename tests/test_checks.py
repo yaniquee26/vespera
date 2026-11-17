@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from vespera.agent_contracts import AGENT_CHECKS
 from vespera.checks import (
     CHECKS,
     CheckConfigError,
@@ -249,7 +250,7 @@ def make_attempt(case_id: str, reply: str = "ok", error: str | None = None) -> A
 
 
 def test_every_known_check_has_an_implementation_and_back() -> None:
-    assert set(CHECKS) == set(KNOWN_CHECKS)
+    assert set(CHECKS) == set(KNOWN_CHECKS) | set(AGENT_CHECKS)
 
 
 def test_run_checks_adds_the_language_info_check_automatically() -> None:

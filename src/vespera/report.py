@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from jinja2 import Environment, select_autoescape
 
-from vespera.contracts import Category, CheckStatus, Language, Snapshot
+from vespera.contracts import HARMLESS, Category, CheckStatus, Language, Snapshot
 from vespera.findings import build_findings, split_attempt_id
 from vespera.report_template import TEMPLATE
 from vespera.stats import (
@@ -30,6 +30,10 @@ LABELS = {
     Category.PII_LEAK: "Personal data leak",
     Category.JAILBREAK: "Jailbreak (role-play)",
     Category.BENIGN: "Needless refusal (harmless question)",
+    Category.TOOL_OUTPUT_INJECTION: "Order hidden in tool output",
+    Category.DATA_EXFILTRATION: "Secret sent out through a tool",
+    Category.EXCESSIVE_AGENCY: "Action the agent must not take",
+    Category.BENIGN_TASK: "Harmless task not done",
 }
 
 
@@ -57,6 +61,7 @@ class EvidenceView:
     excerpt: str
     prompt: str
     reply: str
+    trace: str | None  # agent runs: what the agent said, called and got back
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,7 @@ class ReportData:
     language_matches: int
     language_known: int
     language_unknown: int
+    is_agent: bool
 
 
 def build_report(storage: Storage, run_id: int) -> ReportData:
@@ -95,6 +101,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
     attempts = storage.get_attempts(run_id)
     case_by_id = {case.id: case for case in cases}
     attempt_by_key = {(a.case_id, a.repeat): a for a in attempts}
+    traces = storage.get_traces(run_id)
     detail_by_key = {(r.case_id, r.repeat, r.check): r.detail for r in results}
 
     verdicts = attempt_verdicts(cases, results)
@@ -108,7 +115,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
             CategoryRow(
                 key=category.value,
                 label=LABELS[category],
-                harmless=category is Category.BENIGN,
+                harmless=category in HARMLESS,
                 rate=rate,
                 stability=stable.get(category),
                 by_language={lang.value: r for lang, r in languages.items()},
@@ -116,7 +123,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
             )
         )
 
-    attack = [v for v in verdicts if v.category is not Category.BENIGN]
+    attack = [v for v in verdicts if v.category not in HARMLESS]
     attack_rate = make_rate(sum(v.violated for v in attack), len(attack)) if attack else None
 
     findings: list[FindingView] = []
@@ -137,6 +144,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
                     excerpt=item.excerpt,
                     prompt=case.prompt,
                     reply=attempt.reply or "(empty reply)",
+                    trace=trace.describe() if (trace := traces.get((case_id, repeat))) else None,
                 )
             )
         findings.append(
@@ -169,6 +177,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
         language_matches=matches,
         language_known=known,
         language_unknown=unknown,
+        is_agent=storage.is_agent_run(run_id),
     )
 
 

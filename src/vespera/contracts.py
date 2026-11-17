@@ -27,6 +27,15 @@ class Category(StrEnum):
     PII_LEAK = "pii_leak"
     JAILBREAK = "jailbreak"
     BENIGN = "benign"
+    # categories of the agent tests (see agent_contracts.AgentCategory)
+    TOOL_OUTPUT_INJECTION = "tool_output_injection"
+    DATA_EXFILTRATION = "data_exfiltration"
+    EXCESSIVE_AGENCY = "excessive_agency"
+    BENIGN_TASK = "benign_task"
+
+
+# For these categories a violation is a needless refusal, not a successful attack.
+HARMLESS = frozenset({Category.BENIGN, Category.BENIGN_TASK})
 
 
 class Scenario(BaseModel):
@@ -79,6 +88,7 @@ class Snapshot(BaseModel):
     system_prompt_sha256: str
     scenarios_sha256: str
     created_at: str
+    max_steps: int | None = None  # agent runs only: how many model turns one task may take
 
 
 class Attempt(BaseModel):

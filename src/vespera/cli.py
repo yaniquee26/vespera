@@ -2,21 +2,28 @@
 
 import os
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from vespera import __version__
-from vespera.bundled import BUNDLED_FILES, read_bundled
+from vespera.agent_contracts import AgentTurn
+from vespera.agent_runner import MAX_STEPS, run_agent_experiment
+from vespera.agent_scenarios import expand_agent_cases, load_agent_scenarios
+from vespera.bundled import AGENT_FILES, BUNDLED_FILES, read_bundled
 from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
-from vespera.contracts import Category
+from vespera.contracts import Category, Snapshot
 from vespera.doctor import all_required_ok, run_all
 from vespera.providers import (
+    AgentProvider,
     BaseProvider,
+    MockAgentProvider,
     MockProvider,
     OllamaProvider,
+    OpenAICompatibleAgentProvider,
     OpenAICompatibleProvider,
     ProviderError,
 )
@@ -86,6 +93,52 @@ def validate(
 DEFAULT_DB = Path("runs/vespera.db")
 
 
+def _api_key_for(address: str, api_key_env: str) -> str | None:
+    """The key from the environment. A local server needs none, any other server does."""
+    key = os.environ.get(api_key_env)
+    if not key and "localhost" not in address and "127.0.0.1" not in address:
+        typer.echo(f"[FAIL] set the environment variable {api_key_env} with your API key")
+        raise typer.Exit(code=1)
+    return key
+
+
+def _begin_run(
+    storage: Storage,
+    db: Path,
+    snapshot: Snapshot,
+    save_cases: Callable[[int], None],
+    case_count: int,
+    resume: int | None,
+) -> int:
+    """Start a new run, or continue an old one if nothing that matters has changed."""
+    if resume is None:
+        run_id = storage.create_run(snapshot)
+        save_cases(run_id)
+        typer.echo(f"Started run {run_id}: {case_count} cases x {snapshot.repeats} repeats")
+        return run_id
+    if not storage.run_exists(resume):
+        typer.echo(f"[FAIL] no run with id {resume} in {db}")
+        raise typer.Exit(code=1)
+    old = storage.get_snapshot(resume)
+    same = (
+        old.model == snapshot.model
+        and old.system_prompt_sha256 == snapshot.system_prompt_sha256
+        and old.scenarios_sha256 == snapshot.scenarios_sha256
+        and old.repeats == snapshot.repeats
+        and old.max_steps == snapshot.max_steps
+    )
+    if not same:
+        typer.echo("[FAIL] model, repeats or input files differ from the original run")
+        raise typer.Exit(code=1)
+    typer.echo(f"Resuming run {resume}")
+    return resume
+
+
+def _print_progress(done: int, total: int, case_id: str, repeat: int, error: str | None) -> None:
+    status = "ERROR" if error else "ok"
+    typer.echo(f"[{done}/{total}] {case_id} (repeat {repeat}) {status}")
+
+
 @app.command()
 def run(
     model: Annotated[str, typer.Option(help="Model name.")] = "gemma3:4b",
@@ -125,12 +178,10 @@ def run(
     if mock:
         provider = MockProvider(["I cannot help with that."])
     elif provider_kind == "openai":
-        key = os.environ.get(api_key_env)
         address = base_url or "https://api.openai.com/v1"
-        if not key and "localhost" not in address and "127.0.0.1" not in address:
-            typer.echo(f"[FAIL] set the environment variable {api_key_env} with your API key")
-            raise typer.Exit(code=1)
-        provider = OpenAICompatibleProvider(model=model, base_url=address, api_key=key)
+        provider = OpenAICompatibleProvider(
+            model=model, base_url=address, api_key=_api_key_for(address, api_key_env)
+        )
     else:
         provider = OllamaProvider(model=model)
     snapshot = build_snapshot(
@@ -144,34 +195,13 @@ def run(
 
     storage = Storage(db)
     try:
-        if resume is None:
-            run_id = storage.create_run(snapshot)
-            storage.save_cases(run_id, cases)
-            typer.echo(f"Started run {run_id}: {len(cases)} cases x {repeats} repeats")
-        else:
-            if not storage.run_exists(resume):
-                typer.echo(f"[FAIL] no run with id {resume} in {db}")
-                raise typer.Exit(code=1)
-            old = storage.get_snapshot(resume)
-            same = (
-                old.model == snapshot.model
-                and old.system_prompt_sha256 == snapshot.system_prompt_sha256
-                and old.scenarios_sha256 == snapshot.scenarios_sha256
-                and old.repeats == snapshot.repeats
-            )
-            if not same:
-                typer.echo("[FAIL] model, repeats or input files differ from the original run")
-                raise typer.Exit(code=1)
-            run_id = resume
-            typer.echo(f"Resuming run {run_id}")
-
-        def progress(done: int, total: int, case_id: str, repeat: int, error: str | None) -> None:
-            status = "ERROR" if error else "ok"
-            typer.echo(f"[{done}/{total}] {case_id} (repeat {repeat}) {status}")
+        run_id = _begin_run(
+            storage, db, snapshot, lambda rid: storage.save_cases(rid, cases), len(cases), resume
+        )
 
         try:
             summary = run_experiment(
-                provider, cases, system_text, storage, run_id, repeats, on_progress=progress
+                provider, cases, system_text, storage, run_id, repeats, on_progress=_print_progress
             )
         except RunAborted as exc:
             typer.echo(f"[FAIL] {exc}")
@@ -212,9 +242,10 @@ def show(
 def check(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
-    system_prompt: Annotated[Path, typer.Option(help="System prompt file.")] = Path(
-        "system_prompt.txt"
-    ),
+    system_prompt: Annotated[
+        Path | None,
+        typer.Option(help="System prompt file (default: the one that fits this kind of run)."),
+    ] = None,
 ) -> None:
     """Run the automatic checks on a saved run and print what the model got wrong."""
     storage = Storage(db)
@@ -223,10 +254,13 @@ def check(
         if chosen is None or not storage.run_exists(chosen):
             typer.echo("[FAIL] no such run")
             raise typer.Exit(code=1)
+        prompt_path = system_prompt or Path(
+            "agent_system_prompt.txt" if storage.is_agent_run(chosen) else "system_prompt.txt"
+        )
         try:
-            system_text = system_prompt.read_text(encoding="utf-8")
+            system_text = prompt_path.read_text(encoding="utf-8")
         except OSError as exc:
-            typer.echo(f"[FAIL] cannot read {system_prompt}: {exc}")
+            typer.echo(f"[FAIL] cannot read {prompt_path}: {exc}")
             raise typer.Exit(code=1) from exc
         snapshot = storage.get_snapshot(chosen)
         if sha256_text(system_text) != snapshot.system_prompt_sha256:
@@ -235,7 +269,9 @@ def check(
 
         cases = storage.get_cases(chosen)
         try:
-            results = run_checks(cases, storage.get_attempts(chosen), system_text)
+            results = run_checks(
+                cases, storage.get_attempts(chosen), system_text, storage.get_traces(chosen)
+            )
         except CheckConfigError as exc:
             typer.echo(f"[FAIL] {exc}")
             raise typer.Exit(code=1) from exc
@@ -315,14 +351,16 @@ def compare(
 def init(
     directory: Annotated[Path, typer.Option(help="Folder for the example files.")] = Path("."),
     force: Annotated[bool, typer.Option(help="Overwrite files that already exist.")] = False,
+    agents: Annotated[bool, typer.Option(help="Also copy the files for agent tests.")] = False,
 ) -> None:
     """Copy the example scenarios and system prompt into a folder, ready to edit."""
     directory.mkdir(parents=True, exist_ok=True)
-    existing = [name for name in BUNDLED_FILES if (directory / name).exists()]
+    names = BUNDLED_FILES + AGENT_FILES if agents else BUNDLED_FILES
+    existing = [name for name in names if (directory / name).exists()]
     if existing and not force:
         typer.echo(f"[FAIL] already exists: {', '.join(existing)}. Use --force to overwrite.")
         raise typer.Exit(code=1)
-    for name in BUNDLED_FILES:
+    for name in names:
         (directory / name).write_text(read_bundled(name), encoding="utf-8")
         typer.echo(f"[OK] wrote {directory / name}")
     typer.echo("Next: put YOUR bot's system prompt in system_prompt.txt")
@@ -398,3 +436,89 @@ def test_command(
         )
         raise typer.Exit(code=2)
     typer.echo(f"[OK] attacks succeeded in {rate.p:.0%}, within the allowed {max_attack_rate:.0%}")
+
+
+@app.command("run-agent")
+def run_agent(
+    model: Annotated[str, typer.Option(help="A model that can call tools.")] = "qwen2.5:7b",
+    base_url: Annotated[
+        str, typer.Option(help="OpenAI-style API address (default: local Ollama).")
+    ] = "http://localhost:11434/v1",
+    api_key_env: Annotated[
+        str, typer.Option(help="Name of the environment variable that holds the API key.")
+    ] = "OPENAI_API_KEY",
+    repeats: Annotated[int, typer.Option(min=1, help="How many times to run each case.")] = 1,
+    limit: Annotated[int | None, typer.Option(min=1, help="Only the first N cases.")] = None,
+    max_steps: Annotated[
+        int, typer.Option(min=1, max=20, help="Most model turns allowed for one task.")
+    ] = MAX_STEPS,
+    scenarios: Annotated[Path, typer.Option(help="Agent scenario file.")] = Path(
+        "agent_scenarios_v1.yaml"
+    ),
+    system_prompt: Annotated[Path, typer.Option(help="Agent system prompt file.")] = Path(
+        "agent_system_prompt.txt"
+    ),
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    resume: Annotated[int | None, typer.Option(help="Continue a run by its id.")] = None,
+    mock: Annotated[bool, typer.Option(help="Use a fake agent (no GPU, for trying out).")] = False,
+) -> None:
+    """Give the agent every task, let it use simulated tools, and save everything it did."""
+    try:
+        loaded = load_agent_scenarios(scenarios)
+        system_text = system_prompt.read_text(encoding="utf-8")
+        scenarios_text = scenarios.read_text(encoding="utf-8")
+    except (ScenarioFileError, OSError) as exc:
+        typer.echo(f"[FAIL] {exc}")
+        if not scenarios.exists() or not system_prompt.exists():
+            typer.echo("Tip: `vespera init --agents` copies the example agent files here.")
+        raise typer.Exit(code=1) from exc
+
+    cases = expand_agent_cases(loaded)[:limit]
+    provider: AgentProvider
+    if mock:
+        provider = MockAgentProvider([AgentTurn(text="I cannot help with that.")])
+    else:
+        provider = OpenAICompatibleAgentProvider(
+            model=model, base_url=base_url, api_key=_api_key_for(base_url, api_key_env)
+        )
+    snapshot = build_snapshot(
+        model=provider.model,
+        temperature=provider.temperature,
+        num_predict=provider.num_predict,
+        repeats=repeats,
+        system_prompt=system_text,
+        scenarios_text=scenarios_text,
+        max_steps=max_steps,
+    )
+
+    storage = Storage(db)
+    try:
+        run_id = _begin_run(
+            storage,
+            db,
+            snapshot,
+            lambda rid: storage.save_cases(rid, [case.to_case() for case in cases]),
+            len(cases),
+            resume,
+        )
+        try:
+            summary = run_agent_experiment(
+                provider,
+                cases,
+                system_text,
+                storage,
+                run_id,
+                repeats,
+                max_steps=max_steps,
+                on_progress=_print_progress,
+            )
+        except RunAborted as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
+            f"{summary.skipped} skipped. Saved to {db}"
+        )
+        typer.echo(f"Next: vespera check {run_id}, then vespera report {run_id}")
+    finally:
+        storage.close()
