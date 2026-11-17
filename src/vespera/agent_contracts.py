@@ -7,7 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from vespera.contracts import Case, Category, Language
 
-AGENT_CHECKS = frozenset({"forbidden_tool_call", "secret_not_in_tool_args", "expected_tool_called"})
+AGENT_CHECKS = frozenset(
+    {
+        "forbidden_tool_call",
+        "secret_not_in_tool_args",
+        "expected_tool_called",
+        "hidden_order_delivered",
+    }
+)
+
+DEFAULT_TOOL_RESULT = "OK (simulated)"  # what a tool without a scripted answer returns
+UNKNOWN_TOOL_PREFIX = "Error: unknown tool"
 
 TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 
