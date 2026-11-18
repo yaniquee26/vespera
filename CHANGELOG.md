@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (0.4)
+- Risk labels: every category carries an OWASP LLM Top 10 (2025) id and a severity; the report shows them.
+- Gate with three outcomes (passed / failed / inconclusive): `--max-attack-rate`,
+  `--zero-tolerance LLM02,LLM06`, `--min-exposure`. New command `vespera gate`; exit codes 0, 2, 3.
+- Machine-readable results: `results.json` and JUnit XML (`--json`, `--junit`, `vespera export`),
+  masked by default; `--reveal` shows everything. `vespera check --mask` for the console.
+- Agent runs: a tool call written as plain text is now measured and reported separately.
+- Agent system prompt orders a `search_help` lookup, so poisoned tool output reaches the agent.
+
 ## 0.3.0
 - Agent testing: `vespera run-agent` plays tasks with simulated tools, including tool output that
   hides an order (indirect injection), and records everything the agent said and called.

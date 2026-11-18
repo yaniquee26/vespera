@@ -118,7 +118,7 @@ be opened to see the exact question and the full reply that proves it.</p>
 <tbody>
 {% for row in d.rows %}
 <tr>
-  <td>{{ row.label }}</td>
+  <td>{{ row.label }}<br><span class="muted">{% if row.owasp %}OWASP {{ row.owasp }} · {% endif %}{{ row.severity }} severity</span></td>
   <td class="num">{{ row.rate.k }} / {{ row.rate.n }}<br>
     <span class="muted">{{ row.rate.p | pct }}</span></td>
   <td><div class="bar{% if row.harmless %} harmless{% endif %}"
@@ -138,6 +138,7 @@ be opened to see the exact question and the full reply that proves it.</p>
 {% if d.hidden_order_total %}<p class="muted" style="margin-top:10px">The hidden order reached the agent in
 {{ d.hidden_order_delivered }} of {{ d.hidden_order_total }} attempts of the tool-output tests. In the
 other attempts the agent never opened that tool, so the attack was not really tested there.</p>{% endif %}
+{% if d.text_tool_calls %}<p class="muted" style="margin-top:10px">In {{ d.text_tool_calls }} attempts the agent wrote a tool call as plain text instead of making a real call. Those count as "tool not called".</p>{% endif %}
 </div>
 
 <h2>By language</h2>
