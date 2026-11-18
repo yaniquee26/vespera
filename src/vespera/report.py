@@ -22,6 +22,7 @@ from vespera.stats import (
     stability,
 )
 from vespera.storage import Storage
+from vespera.taxonomy import risk_of
 
 LABELS = {
     Category.DIRECT_INJECTION: "Direct prompt injection",
@@ -45,6 +46,8 @@ class ReportError(Exception):
 class CategoryRow:
     key: str
     label: str
+    owasp: str | None
+    severity: str
     harmless: bool  # True for the benign category: a violation means a needless refusal
     rate: Rate
     stability: Stability | None
@@ -90,6 +93,7 @@ class ReportData:
     is_agent: bool
     hidden_order_delivered: int
     hidden_order_total: int
+    text_tool_calls: int
 
 
 def build_report(storage: Storage, run_id: int) -> ReportData:
@@ -117,6 +121,8 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
             CategoryRow(
                 key=category.value,
                 label=LABELS[category],
+                owasp=risk_of(category).owasp,
+                severity=risk_of(category).severity.label,
                 harmless=category in HARMLESS,
                 rate=rate,
                 stability=stable.get(category),
@@ -156,11 +162,13 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
     finding_keys = {f.key for f in findings}
     clean = [(row.label, row.rate) for row in rows if row.key not in finding_keys]
 
-    matches = known = unknown = delivered = exposed = 0
+    matches = known = unknown = delivered = exposed = text_calls = 0
     for result in results:
         if result.check == "hidden_order_delivered":
             exposed += 1
             delivered += result.value == "yes"
+        elif result.check == "tool_call_as_text":
+            text_calls += result.value == "yes"
         elif result.status is CheckStatus.INFO:
             if result.value == "unknown":
                 unknown += 1
@@ -185,6 +193,7 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
         is_agent=storage.is_agent_run(run_id),
         hidden_order_delivered=delivered,
         hidden_order_total=exposed,
+        text_tool_calls=text_calls,
     )
 
 

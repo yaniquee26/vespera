@@ -30,6 +30,8 @@ class Summary:
     language_unknown: int
     hidden_order_delivered: int = 0
     hidden_order_total: int = 0
+    text_tool_calls: int = 0
+    text_tool_calls_total: int = 0
 
 
 def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
@@ -37,7 +39,7 @@ def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
     judged: dict[Category, set[tuple[str, int]]] = {}
     violated: dict[Category, set[tuple[str, int]]] = {}
     violations: list[Violation] = []
-    matches = known = unknown = delivered = exposed = 0
+    matches = known = unknown = delivered = exposed = text_calls = text_total = 0
 
     for result in results:
         case = by_id[result.case_id]
@@ -45,6 +47,10 @@ def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
         if result.check == "hidden_order_delivered":
             exposed += 1
             delivered += result.value == "yes"
+            continue
+        if result.check == "tool_call_as_text":
+            text_total += 1
+            text_calls += result.value == "yes"
             continue
         if result.status is CheckStatus.INFO:
             if result.value == "unknown":
@@ -83,4 +89,6 @@ def summarize(cases: list[Case], results: list[CheckResult]) -> Summary:
         unknown,
         hidden_order_delivered=delivered,
         hidden_order_total=exposed,
+        text_tool_calls=text_calls,
+        text_tool_calls_total=text_total,
     )

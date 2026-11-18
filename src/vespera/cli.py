@@ -17,6 +17,14 @@ from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.contracts import Category, Snapshot
 from vespera.doctor import all_required_ok, run_all
+from vespera.export import build_junit, build_results, mask, render_json, secrets_of
+from vespera.gate import (
+    GateConfigError,
+    GatePolicy,
+    GateResult,
+    GateStatus,
+    evaluate_gate,
+)
 from vespera.providers import (
     AgentProvider,
     BaseProvider,
@@ -27,7 +35,7 @@ from vespera.providers import (
     OpenAICompatibleProvider,
     ProviderError,
 )
-from vespera.report import ReportError, build_report, render_html
+from vespera.report import ReportData, ReportError, build_report, render_html
 from vespera.runner import RunAborted, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
 from vespera.snapshot import build_snapshot, sha256_text
@@ -35,6 +43,134 @@ from vespera.storage import Storage
 from vespera.summary import summarize
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
+
+
+MaxRateOption = Annotated[
+    float | None,
+    typer.Option(
+        min=0.0,
+        max=1.0,
+        help="Fail (exit code 2) if the share of successful attacks is above this, 0 to 1.",
+    ),
+]
+ZeroToleranceOption = Annotated[
+    str | None,
+    typer.Option(
+        help="Comma-separated OWASP ids or categories that must have no violation at all, "
+        "for example LLM02,LLM06. Any violation fails the gate (exit code 2)."
+    ),
+]
+MinExposureOption = Annotated[
+    float,
+    typer.Option(
+        min=0.0,
+        max=1.0,
+        help="Agent runs: below this share of attempts that reached the poisoned tool, "
+        "the gate is inconclusive (exit code 3).",
+    ),
+]
+JsonOption = Annotated[
+    Path | None, typer.Option("--json", help="Also write machine-readable results.json here.")
+]
+JunitOption = Annotated[
+    Path | None, typer.Option("--junit", help="Also write a JUnit XML file here (for CI).")
+]
+RevealOption = Annotated[
+    bool, typer.Option("--reveal", help="Do not mask secrets and long numbers in console/json/xml.")
+]
+
+
+def _policy(max_rate: float | None, zero_tolerance: str | None, min_exposure: float) -> GatePolicy:
+    selectors = tuple(part.strip() for part in (zero_tolerance or "").split(",") if part.strip())
+    return GatePolicy(
+        max_attack_rate=max_rate, zero_tolerance=selectors, min_exposure=min_exposure
+    )
+
+
+def _has_rules(policy: GatePolicy) -> bool:
+    return policy.max_attack_rate is not None or bool(policy.zero_tolerance)
+
+
+def _chosen_run(db: Path, run_id: int | None) -> int:
+    storage = Storage(db)
+    try:
+        chosen = run_id if run_id is not None else storage.latest_run_id()
+        if chosen is None or not storage.run_exists(chosen):
+            typer.echo("[FAIL] no such run")
+            raise typer.Exit(code=1)
+        return chosen
+    finally:
+        storage.close()
+
+
+def _print_gate(result: GateResult) -> None:
+    label = {
+        GateStatus.PASSED: "[OK]",
+        GateStatus.FAILED: "[FAIL]",
+        GateStatus.INCONCLUSIVE: "[INCONCLUSIVE]",
+    }
+    for reason in result.reasons:
+        typer.echo(f"{label[result.status]} {reason}")
+    typer.echo(f"Gate: {result.status.value}")
+
+
+def _write_exports(
+    storage: Storage,
+    run_id: int,
+    data: ReportData,
+    result: GateResult | None,
+    json_path: Path | None,
+    junit_path: Path | None,
+    reveal: bool,
+) -> None:
+    cases = storage.get_cases(run_id)
+    hidden = secrets_of(cases)
+    if json_path is not None:
+        payload = build_results(data, result, mask_values=not reveal, secrets=hidden)
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(render_json(payload), encoding="utf-8")
+        typer.echo(f"[OK] results written to {json_path}")
+    if junit_path is not None:
+        xml = build_junit(
+            run_id,
+            storage.get_snapshot(run_id),
+            cases,
+            storage.get_attempts(run_id),
+            storage.get_check_results(run_id),
+            mask_values=not reveal,
+            secrets=hidden,
+        )
+        junit_path.parent.mkdir(parents=True, exist_ok=True)
+        junit_path.write_text(xml, encoding="utf-8")
+        typer.echo(f"[OK] JUnit XML written to {junit_path}")
+
+
+def _finish(
+    db: Path,
+    run_id: int,
+    policy: GatePolicy | None,
+    json_path: Path | None,
+    junit_path: Path | None,
+    reveal: bool,
+) -> None:
+    """Build the report data, apply the gate if there is a policy, write exports, set exit code."""
+    storage = Storage(db)
+    result: GateResult | None = None
+    try:
+        try:
+            data = build_report(storage, run_id)
+            if policy is not None:
+                result = evaluate_gate(data, policy)
+        except (ReportError, GateConfigError) as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+        _write_exports(storage, run_id, data, result, json_path, junit_path, reveal)
+    finally:
+        storage.close()
+    if result is not None:
+        _print_gate(result)
+        if result.exit_code:
+            raise typer.Exit(code=result.exit_code)
 
 
 @app.command()
@@ -246,6 +382,9 @@ def check(
         Path | None,
         typer.Option(help="System prompt file (default: the one that fits this kind of run)."),
     ] = None,
+    mask_output: Annotated[
+        bool, typer.Option("--mask", help="Hide secrets and long numbers in the printed proof.")
+    ] = False,
 ) -> None:
     """Run the automatic checks on a saved run and print what the model got wrong."""
     storage = Storage(db)
@@ -294,11 +433,18 @@ def check(
                 f"{summary.hidden_order_total} tool-output attempts "
                 "(in the rest the agent never opened the tool)"
             )
+        if summary.text_tool_calls:
+            typer.echo(
+                f"Tool call written as plain text: {summary.text_tool_calls} / "
+                f"{summary.text_tool_calls_total} attempts (counted as 'tool not called')"
+            )
         if summary.violations:
+            hidden = secrets_of(cases)
             typer.echo("Violations:")
             for v in summary.violations:
+                excerpt = mask(v.excerpt, hidden) if mask_output else v.excerpt
                 typer.echo(f"  {v.case_id} #{v.repeat} [{v.check}] {v.detail}")
-                typer.echo(f"      > {v.excerpt}")
+                typer.echo(f"      > {excerpt}")
         typer.echo(f"[OK] verdicts saved to {db}")
     finally:
         storage.close()
@@ -392,14 +538,12 @@ def test_command(
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
     out: Annotated[Path | None, typer.Option(help="Where to write the HTML report.")] = None,
     mock: Annotated[bool, typer.Option(help="Use a fake model (no GPU, for trying out).")] = False,
-    max_attack_rate: Annotated[
-        float | None,
-        typer.Option(
-            min=0.0,
-            max=1.0,
-            help="Fail (exit code 2) if the share of successful attacks is above this, 0 to 1.",
-        ),
-    ] = None,
+    max_attack_rate: MaxRateOption = None,
+    zero_tolerance: ZeroToleranceOption = None,
+    min_exposure: MinExposureOption = 0.5,
+    json_path: JsonOption = None,
+    junit_path: JunitOption = None,
+    reveal: RevealOption = False,
 ) -> None:
     """Run, check and report in one go. Optionally fail when the bot is too weak (for CI)."""
     run(
@@ -423,25 +567,44 @@ def test_command(
     if run_id is None:
         typer.echo("[FAIL] no run was saved")
         raise typer.Exit(code=1)
-    check(run_id, db=db, system_prompt=system_prompt)
+    check(run_id, db=db, system_prompt=system_prompt, mask_output=not reveal)
     report(run_id, db=db, out=out)
-    if max_attack_rate is None:
-        return
-    storage = Storage(db)
-    try:
-        rate = build_report(storage, run_id).attack_rate
-    finally:
-        storage.close()
-    if rate is None:
-        typer.echo("[FAIL] no attack attempts were judged, so the limit cannot be checked")
+    policy = _policy(max_attack_rate, zero_tolerance, min_exposure)
+    _finish(db, run_id, policy if _has_rules(policy) else None, json_path, junit_path, reveal)
+
+
+@app.command("gate")
+def gate_command(
+    run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    max_attack_rate: MaxRateOption = None,
+    zero_tolerance: ZeroToleranceOption = None,
+    min_exposure: MinExposureOption = 0.5,
+    json_path: JsonOption = None,
+    junit_path: JunitOption = None,
+    reveal: RevealOption = False,
+) -> None:
+    """Decide pass / fail / inconclusive for a checked run. Exit code 0, 2 or 3 (for CI)."""
+    policy = _policy(max_attack_rate, zero_tolerance, min_exposure)
+    if not _has_rules(policy):
+        typer.echo("[FAIL] give at least one rule: --max-attack-rate or --zero-tolerance")
         raise typer.Exit(code=1)
-    if rate.p > max_attack_rate:
-        typer.echo(
-            f"[FAIL] attacks succeeded in {rate.p:.0%} of attempts, "
-            f"above the allowed {max_attack_rate:.0%}"
-        )
-        raise typer.Exit(code=2)
-    typer.echo(f"[OK] attacks succeeded in {rate.p:.0%}, within the allowed {max_attack_rate:.0%}")
+    _finish(db, _chosen_run(db, run_id), policy, json_path, junit_path, reveal)
+
+
+@app.command("export")
+def export_command(
+    run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+    json_path: JsonOption = None,
+    junit_path: JunitOption = None,
+    reveal: RevealOption = False,
+) -> None:
+    """Write machine-readable results (JSON and/or JUnit XML) of a checked run."""
+    if json_path is None and junit_path is None:
+        typer.echo("[FAIL] choose at least one of --json and --junit")
+        raise typer.Exit(code=1)
+    _finish(db, _chosen_run(db, run_id), None, json_path, junit_path, reveal)
 
 
 @app.command("run-agent")

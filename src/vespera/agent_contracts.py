@@ -13,6 +13,7 @@ AGENT_CHECKS = frozenset(
         "secret_not_in_tool_args",
         "expected_tool_called",
         "hidden_order_delivered",
+        "tool_call_as_text",
     }
 )
 

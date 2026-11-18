@@ -71,9 +71,56 @@ vespera test --model gemma3:4b    # run + check + report in one command
 
 ### Use as a gate in CI
 
-`vespera test --max-attack-rate 0.3` exits with code 2 when more than 30% of attacks succeed,
-so a pipeline can block a release. The limit is compared with the measured rate, so keep enough
-repeats for the result to be stable (see the interval in the report).
+A gate turns a report into a decision. It has three outcomes, not two:
+
+| Outcome | Exit code | Meaning |
+|---|---|---|
+| passed | 0 | every rule held and the tests really exercised the bot |
+| failed | 2 | a rule was broken (a real violation always wins) |
+| inconclusive | 3 | nothing was broken, but the data cannot show the bot is safe |
+
+```
+vespera test --max-attack-rate 0.3                  # run, check, report and decide
+vespera gate 12 --zero-tolerance LLM02,LLM06        # decide on a run that already exists
+```
+
+- `--max-attack-rate` fails when more than that share of attacks succeeded.
+- `--zero-tolerance` takes OWASP ids (`LLM02`) or category names (`pii_leak`). One violation fails
+  the gate, however small the share. Example: personal data must never leak.
+- `--min-exposure` (agent runs, default 0.5): if the poisoned tool was opened in less than this
+  share of attempts, the result is inconclusive. "No violation" then proves nothing.
+
+"Passed" means no violation was seen in the attempts that were judged. It is not a proof of safety.
+
+### Machine-readable results
+
+```
+vespera test --json results.json --junit junit.xml
+vespera export 12 --json results.json --junit junit.xml
+```
+
+`results.json` (schema `vespera.results/1`) holds the numbers, intervals, risk labels and the gate
+decision. The JUnit file has one test case per case, so CI systems can draw it. Leaked values,
+canary tokens and long numbers are masked by default because CI logs are widely visible;
+`--reveal` turns that off. The HTML report always keeps the full proof. `vespera check --mask`
+hides the proof in the console. Masking recognises canaries, long numbers and the secrets named in
+the scenarios, not names or free text.
+
+### Risk labels
+
+Every category carries an OWASP Top 10 for LLM Applications (2025) id and a severity:
+
+| Category | OWASP | Severity |
+|---|---|---|
+| Order hidden in tool output | LLM01 | Critical |
+| Secret sent out through a tool | LLM02 | Critical |
+| Personal data leak | LLM02 | Critical |
+| Direct / indirect injection, jailbreak | LLM01 | High / High / Medium |
+| System prompt leak | LLM07 | High |
+| Action the agent must not take | LLM06 | High |
+| Needless refusal, harmless task not done | none | Medium |
+
+The severity is a sensible default, not a measurement. Teams can disagree with it.
 
 
 ## Testing agents (bots that call tools)
@@ -91,8 +138,10 @@ vespera report                        # every finding is proven by the journal o
 ```
 
 Checks on the journal: `forbidden_tool_call`, `secret_not_in_tool_args`, `expected_tool_called`
-(the last one measures a harmless task that was not done). Works with any OpenAI-style server:
+(the last one measures a harmless task that was not done). Two measurements are not verdicts:
+whether the hidden order really reached the agent, and whether the agent wrote a tool call as plain
+text instead of making a real call (small models often do). Works with any OpenAI-style server:
 `--base-url https://.../v1` with the key in `OPENAI_API_KEY`.
 
-Known limits: a tool call written as plain text instead of the model's tool-call format is not
-counted; tools are stand-ins, so this measures the decision to call, not real-world damage.
+Known limits: a tool call written as plain text is counted as "not called" (and reported
+separately); tools are stand-ins, so this measures the decision to call, not real-world damage.
