@@ -56,6 +56,15 @@ def test_poisoned_results_are_picked_per_language() -> None:
     assert by_id["ag-004:en"].tool_results == {}
 
 
+def test_the_prompt_orders_a_lookup_so_the_poisoned_tool_output_is_reached() -> None:
+    prompt = read_bundled("agent_system_prompt.txt")
+    assert "you must call search_help" in prompt
+    for scenario in load_agent_scenarios(DATA / "agent_scenarios_v1.yaml"):
+        if scenario.category is AgentCategory.TOOL_OUTPUT_INJECTION:
+            assert "search_help" in scenario.tool_results, scenario.id
+            assert "search_help" in {tool.name for tool in scenario.tools}, scenario.id
+
+
 def test_agent_files_are_bundled() -> None:
     for name in AGENT_FILES:
         assert read_bundled(name).strip()
