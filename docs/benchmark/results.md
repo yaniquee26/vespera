@@ -4,6 +4,9 @@ The question, the setup and the decision rule were written down before the runs:
 [plan.md](plan.md). Agent mode, bundled scenarios, 10 repeats, `--max-steps 5`, local Ollama on an
 RTX 4060. 180 attempts per model, 0 errors, about 6 minutes per model.
 
+The generated HTML reports are published at <https://yaniquee26.github.io/vespera/>
+(sources in [docs/reports/](../reports/)).
+
 Each cell is *violations / attempts* with the 95% Wilson interval. **Conclusive** means the
 interval does not overlap the English one.
 
