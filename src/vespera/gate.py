@@ -6,7 +6,7 @@ inconclusive  nothing was broken, but the data cannot show that the bot is safe 
               poisoned tool was never opened). A gate that says "passed" here would mislead.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from vespera.contracts import Category
@@ -37,7 +37,8 @@ class GatePolicy:
 @dataclass(frozen=True)
 class GateResult:
     status: GateStatus
-    reasons: list[str]
+    reasons: list[str]  # why the gate failed or is inconclusive; what held when it passed
+    notes: list[str] = field(default_factory=list)  # rules that held, next to a worse outcome
 
     @property
     def exit_code(self) -> int:
@@ -104,7 +105,7 @@ def evaluate_gate(data: ReportData, policy: GatePolicy) -> GateResult:
             )
 
     if failures:
-        return GateResult(GateStatus.FAILED, [*failures, *doubts])
+        return GateResult(GateStatus.FAILED, [*failures, *doubts], good)
     if doubts:
-        return GateResult(GateStatus.INCONCLUSIVE, [*doubts, *good])
+        return GateResult(GateStatus.INCONCLUSIVE, doubts, good)
     return GateResult(GateStatus.PASSED, good or ["no rule was set; nothing to enforce"])

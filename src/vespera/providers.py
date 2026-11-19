@@ -4,6 +4,7 @@ import json
 from abc import ABC, abstractmethod
 from itertools import cycle
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -145,13 +146,105 @@ class OpenAICompatibleProvider(BaseProvider):
         return content
 
 
-def _explain_http_error(model: str, status: int) -> str:
+def dig(data: Any, path: str) -> Any:
+    """Follow a dotted path through JSON: 'choices.0.message.content'. Raises KeyError if absent."""
+    current = data
+    for part in path.split("."):
+        if isinstance(current, list):
+            try:
+                current = current[int(part)]
+            except (ValueError, IndexError) as exc:
+                raise KeyError(path) from exc
+        elif isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            raise KeyError(path)
+    return current
+
+
+def put(body: dict[str, Any], path: str, value: Any) -> None:
+    """Set a value at a dotted path, creating objects on the way: 'input.text'."""
+    *parents, last = path.split(".")
+    current = body
+    for part in parents:
+        nested = current.setdefault(part, {})
+        if not isinstance(nested, dict):
+            raise ValueError(f"'{path}' collides with a fixed value in extra_body")
+        current = nested
+    current[last] = value
+
+
+class HttpProvider(BaseProvider):
+    """Talks to any bot behind a plain JSON-over-HTTP endpoint.
+
+    Each question is sent alone, as one POST. Where the question goes in the request and where the
+    answer sits in the response are set by dotted paths, so no code is needed for a new bot.
+    Vespera does not control such a bot's own settings, so temperature and length are not set here.
+    The key is passed in and never stored; error messages never repeat the address.
+    """
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        reply_field: str,
+        request_field: str = "message",
+        extra_body: dict[str, Any] | None = None,
+        system_field: str | None = None,
+        api_key: str | None = None,
+        api_key_header: str = "Authorization",
+        api_key_prefix: str = "Bearer ",
+        timeout: float = 60.0,
+        client: httpx.Client | None = None,
+    ) -> None:
+        parts = urlparse(url)
+        self.model = f"{parts.netloc}{parts.path}".rstrip("/") or url  # no query: it may hold a key
+        self.temperature = 0.0
+        self.num_predict = 0
+        self._url = url
+        self._reply_field = reply_field
+        self._request_field = request_field
+        self._extra_body = extra_body or {}
+        self._system_field = system_field
+        headers = {api_key_header: f"{api_key_prefix}{api_key}"} if api_key else {}
+        self._client = client or httpx.Client(timeout=timeout, headers=headers)
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
+        body = json.loads(json.dumps(self._extra_body))  # a private copy for every request
+        try:
+            put(body, self._request_field, user_prompt)
+            if self._system_field:
+                put(body, self._system_field, system_prompt)
+        except ValueError as exc:
+            raise ProviderError(str(exc)) from exc
+        try:
+            response = self._client.post(self._url, json=body)
+            response.raise_for_status()
+            data = response.json()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            raise ProviderError(_explain_http_error(self.model, status, "target.url")) from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"request to the bot failed ({type(exc).__name__})") from exc
+        except ValueError as exc:
+            raise ProviderError("the bot did not answer with JSON") from exc
+        try:
+            content = dig(data, self._reply_field)
+        except KeyError as exc:
+            raise ProviderError(
+                f"no reply found at '{self._reply_field}' in the bot's answer: check reply_field"
+            ) from exc
+        if not isinstance(content, str) or not content.strip():
+            raise ProviderError(f"the value at '{self._reply_field}' is empty or not text")
+        return content
+
+
+def _explain_http_error(model: str, status: int, where: str = "--model and --base-url") -> str:
     if status in (401, 403):
         return f"the server refused the API key (HTTP {status}): check the key and its rights"
     if status == 404:
         return (
-            f"model '{model}' or the address was not found (HTTP 404): "
-            "check --model and --base-url"
+            f"model '{model}' or the address was not found (HTTP 404): check {where}"
         )
     if status == 429:
         return "too many requests or no credit left (HTTP 429): wait or check the account"
