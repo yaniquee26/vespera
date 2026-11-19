@@ -18,7 +18,7 @@ from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bu
 from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.config import ConfigError, ProjectConfig, TargetConfig, load_config
-from vespera.contracts import Category, Snapshot
+from vespera.contracts import Case, Category, Snapshot
 from vespera.doctor import all_required_ok, run_all
 from vespera.export import build_junit, build_results, mask, render_json, secrets_of
 from vespera.gate import (
@@ -40,7 +40,7 @@ from vespera.providers import (
     ProviderError,
 )
 from vespera.report import ReportData, ReportError, build_report, render_html
-from vespera.runner import RunAborted, run_experiment
+from vespera.runner import RunAborted, RunSummary, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
 from vespera.snapshot import build_snapshot, sha256_text
 from vespera.storage import Storage
@@ -390,18 +390,13 @@ def _api_key_for(address: str, api_key_env: str) -> str | None:
 
 
 def _begin_run(
-    storage: Storage,
-    db: Path,
-    snapshot: Snapshot,
-    save_cases: Callable[[int], None],
-    case_count: int,
-    resume: int | None,
+    storage: Storage, db: Path, snapshot: Snapshot, cases: list[Case], resume: int | None
 ) -> int:
     """Start a new run, or continue an old one if nothing that matters has changed."""
     if resume is None:
         run_id = storage.create_run(snapshot)
-        save_cases(run_id)
-        typer.echo(f"Started run {run_id}: {case_count} cases x {snapshot.repeats} repeats")
+        storage.save_cases(run_id, cases)
+        typer.echo(f"Started run {run_id}: {len(cases)} cases x {snapshot.repeats} repeats")
         return run_id
     if not storage.run_exists(resume):
         typer.echo(f"[FAIL] no run with id {resume} in {db}")
@@ -424,6 +419,47 @@ def _begin_run(
 def _print_progress(done: int, total: int, case_id: str, repeat: int, error: str | None) -> None:
     status = "ERROR" if error else "ok"
     typer.echo(f"[{done}/{total}] {case_id} (repeat {repeat}) {status}")
+
+
+def _read_inputs[T](
+    scenarios: Path, system_prompt: Path, load: Callable[[Path], T], tip: str | None = None
+) -> tuple[T, str, str]:
+    """Load the scenario file and read both input files as text, or stop with a clear message."""
+    try:
+        loaded = load(scenarios)
+        system_text = system_prompt.read_text(encoding="utf-8")
+        scenarios_text = scenarios.read_text(encoding="utf-8")
+    except (ScenarioFileError, OSError) as exc:
+        typer.echo(f"[FAIL] {exc}")
+        if tip and (not scenarios.exists() or not system_prompt.exists()):
+            typer.echo(tip)
+        raise typer.Exit(code=1) from exc
+    return loaded, system_text, scenarios_text
+
+
+def _run_and_save(
+    db: Path,
+    snapshot: Snapshot,
+    cases: list[Case],
+    resume: int | None,
+    execute: Callable[[Storage, int], RunSummary],
+) -> int:
+    """Open the database, start or resume the run, execute it and report. Returns the run id."""
+    storage = Storage(db)
+    try:
+        run_id = _begin_run(storage, db, snapshot, cases, resume)
+        try:
+            summary = execute(storage, run_id)
+        except RunAborted as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
+            f"{summary.skipped} skipped. Saved to {db}"
+        )
+        return run_id
+    finally:
+        storage.close()
 
 
 @app.command()
@@ -473,14 +509,7 @@ def _execute_run(
     resume: int | None,
 ) -> int:
     """Load the files, build the provider, ask every case, save everything. Returns the run id."""
-    try:
-        loaded = load_scenarios(scenarios)
-        system_text = system_prompt.read_text(encoding="utf-8")
-        scenarios_text = scenarios.read_text(encoding="utf-8")
-    except (ScenarioFileError, OSError) as exc:
-        typer.echo(f"[FAIL] {exc}")
-        raise typer.Exit(code=1) from exc
-
+    loaded, system_text, scenarios_text = _read_inputs(scenarios, system_prompt, load_scenarios)
     cases = expand_cases(loaded)[:limit]
     provider = make_provider()
     snapshot = build_snapshot(
@@ -492,26 +521,15 @@ def _execute_run(
         scenarios_text=scenarios_text,
     )
 
-    storage = Storage(db)
-    try:
-        run_id = _begin_run(
-            storage, db, snapshot, lambda rid: storage.save_cases(rid, cases), len(cases), resume
-        )
-
-        try:
-            summary = run_experiment(
-                provider, cases, system_text, storage, run_id, repeats, on_progress=_print_progress
-            )
-        except RunAborted as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
-        typer.echo(
-            f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
-            f"{summary.skipped} skipped. Saved to {db}"
-        )
-        return run_id
-    finally:
-        storage.close()
+    return _run_and_save(
+        db,
+        snapshot,
+        cases,
+        resume,
+        lambda storage, run_id: run_experiment(
+            provider, cases, system_text, storage, run_id, repeats, on_progress=_print_progress
+        ),
+    )
 
 
 @app.command()
@@ -870,16 +888,12 @@ def _execute_agent_run(
     resume: int | None,
 ) -> int:
     """Same as _execute_run, for an agent that uses simulated tools. Returns the run id."""
-    try:
-        loaded = load_agent_scenarios(scenarios)
-        system_text = system_prompt.read_text(encoding="utf-8")
-        scenarios_text = scenarios.read_text(encoding="utf-8")
-    except (ScenarioFileError, OSError) as exc:
-        typer.echo(f"[FAIL] {exc}")
-        if not scenarios.exists() or not system_prompt.exists():
-            typer.echo("Tip: `vespera init --agents` copies the example agent files here.")
-        raise typer.Exit(code=1) from exc
-
+    loaded, system_text, scenarios_text = _read_inputs(
+        scenarios,
+        system_prompt,
+        load_agent_scenarios,
+        tip="Tip: `vespera init --agents` copies the example agent files here.",
+    )
     cases = expand_agent_cases(loaded)[:limit]
     provider = make_provider()
     snapshot = build_snapshot(
@@ -892,34 +906,19 @@ def _execute_agent_run(
         max_steps=max_steps,
     )
 
-    storage = Storage(db)
-    try:
-        run_id = _begin_run(
+    return _run_and_save(
+        db,
+        snapshot,
+        [case.to_case() for case in cases],
+        resume,
+        lambda storage, run_id: run_agent_experiment(
+            provider,
+            cases,
+            system_text,
             storage,
-            db,
-            snapshot,
-            lambda rid: storage.save_cases(rid, [case.to_case() for case in cases]),
-            len(cases),
-            resume,
-        )
-        try:
-            summary = run_agent_experiment(
-                provider,
-                cases,
-                system_text,
-                storage,
-                run_id,
-                repeats,
-                max_steps=max_steps,
-                on_progress=_print_progress,
-            )
-        except RunAborted as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
-        typer.echo(
-            f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
-            f"{summary.skipped} skipped. Saved to {db}"
-        )
-        return run_id
-    finally:
-        storage.close()
+            run_id,
+            repeats,
+            max_steps=max_steps,
+            on_progress=_print_progress,
+        ),
+    )
