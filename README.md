@@ -2,11 +2,14 @@
 
 ![CI](https://github.com/yaniquee26/vespera/actions/workflows/ci.yml/badge.svg)
 
-Evidence-based reliability testing for language models in Russian, Romanian and English.
-Runs locally on Ollama by default, nothing leaves your machine. Can also test any bot or model
-that speaks the OpenAI chat API (see "Testing another model or bot").
+Evidence-based security and reliability testing for chatbots and tool-using agents, in Russian,
+Romanian and English. It tries to break a bot (hidden orders, secret leaks, forbidden actions),
+decides with simple rules, and shows every finding with its proof, confidence intervals and an
+OWASP LLM Top 10 label. Runs locally on Ollama by default, nothing leaves your machine. Any model
+or bot can be the target: a local model, an OpenAI-style API, or a plain HTTP endpoint.
 
-Status: early development (v0.5: run, check, statistics and an HTML report with proof). See `SPEC.md` for the design and `TASKS.md` for the plan.
+Status: early development, version 0.4 in progress. See `SPEC.md` for the design and `TASKS.md`
+for the plan.
 
 ## Development setup (Windows, PowerShell)
 
@@ -64,10 +67,26 @@ line with a secret code such as `CANARY-ABC123` so leaks can be detected.
 
 ```
 pip install git+https://github.com/yaniquee26/vespera
-vespera init                      # copies example scenarios and a system prompt here
-# edit system_prompt.txt: paste YOUR bot's prompt, keep a CANARY-XXXXXX line
-vespera test --model gemma3:4b    # run + check + report in one command
+vespera init       # writes vespera.yaml, example scenarios and a system prompt
+# 1. open vespera.yaml and describe your target (model, OpenAI-style API or any HTTP bot)
+# 2. put YOUR bot's system prompt in system_prompt.txt, keep a CANARY-XXXXXX line
+vespera test       # run + check + report + gate, driven by vespera.yaml
 ```
+
+`vespera.yaml` replaces a long command line: the target, the number of repeats, what counts as
+acceptable (the gate) and where the machine-readable results go. Flags still win over the file.
+Unknown keys are refused so a typo cannot pass silently, and a key is never written in the file:
+only the name of the environment variable that holds it.
+
+```yaml
+target: {type: http, url: https://my-bot.example.com/chat, reply_field: answer,
+         api_key_env: MY_BOT_KEY}
+repeats: 3
+gate: {max_attack_rate: 0.3, zero_tolerance: [LLM02]}
+```
+
+More: [connect your own bot](docs/connect-your-bot.md) and
+[write your own scenario in 5 minutes](docs/write-a-scenario.md).
 
 ### Use as a gate in CI
 

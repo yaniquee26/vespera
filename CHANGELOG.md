@@ -8,6 +8,13 @@
   masked by default; `--reveal` shows everything. `vespera check --mask` for the console.
 - Agent runs: a tool call written as plain text is now measured and reported separately.
 - Agent system prompt orders a `search_help` lookup, so poisoned tool output reaches the agent.
+- Project file `vespera.yaml`: target, mode, repeats, scenarios, gate and exports in one place.
+  `vespera init` writes it; `vespera test` and `vespera gate` read it. Flags win over the file.
+  Unknown keys are refused. Keys are read from environment variables only.
+- Any bot behind a plain JSON-over-HTTP endpoint can be tested without code (`target.type: http`):
+  the question and the answer are located with dotted paths.
+- `vespera validate` also checks agent scenario files.
+- Guides: `docs/connect-your-bot.md`, `docs/write-a-scenario.md` (their examples are tested).
 
 ## 0.3.0
 - Agent testing: `vespera run-agent` plays tasks with simulated tools, including tool output that

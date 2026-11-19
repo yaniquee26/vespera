@@ -131,7 +131,11 @@ def build_results(
         "findings": findings,
     }
     if gate is not None:
-        result["gate"] = {"status": gate.status.value, "reasons": [clean(r) for r in gate.reasons]}
+        result["gate"] = {
+            "status": gate.status.value,
+            "reasons": [clean(r) for r in gate.reasons],
+            "held": [clean(n) for n in gate.notes],
+        }
     return result
 
 

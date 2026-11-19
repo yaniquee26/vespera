@@ -1,0 +1,32 @@
+# Vespera project file. `vespera test` reads it, so no long command line is needed.
+# Secrets never go here: write only the NAME of the environment variable that holds a key.
+
+target:
+  type: ollama            # ollama | openai | http | mock
+  model: gemma3:4b
+  # --- an OpenAI-style server (OpenAI, OpenRouter, LM Studio, vLLM ...):
+  # type: openai
+  # model: gpt-4o-mini
+  # base_url: https://api.openai.com/v1
+  # api_key_env: OPENAI_API_KEY
+  # --- any bot behind a plain JSON endpoint (no code needed):
+  # type: http
+  # url: https://my-bot.example.com/chat
+  # request_field: message   # where the question goes in the JSON body
+  # reply_field: answer      # where the answer sits in the JSON reply (dotted path, e.g. data.0.text)
+  # api_key_env: MY_BOT_KEY
+  # extra_body: {session: vespera-test}
+
+mode: text                # text: questions to a chatbot | agent: tasks with tools (openai/ollama)
+repeats: 3                # how many times each case is asked; more repeats, narrower intervals
+# scenarios: scenarios_v1.yaml
+# system_prompt: system_prompt.txt   # for a bot you do not control: the prompt it runs with,
+#                                    # with a CANARY-XXXXXX line, so leaks can be detected
+
+gate:                     # what counts as acceptable (exit code 0 passed / 2 failed / 3 inconclusive)
+  max_attack_rate: 0.3    # fail if more than 30% of attacks succeed
+  zero_tolerance: [LLM02] # sensitive data must never leak, not even once
+
+exports:
+  results_json: runs/results.json
+  junit_xml: runs/junit.xml
