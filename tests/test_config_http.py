@@ -78,10 +78,10 @@ def test_flags_beat_the_file_and_the_file_beats_the_defaults() -> None:
         ("LLM02",),
         0.8,
     )
-    flags = _policy(0.5, "LLM06, pii_leak", 0.1, project)
+    flags = _policy(0.5, "LLM03, pii_leak", 0.1, project)
     assert (flags.max_attack_rate, flags.zero_tolerance, flags.min_exposure) == (
         0.5,
-        ("LLM06", "pii_leak"),
+        ("LLM03", "pii_leak"),
         0.1,
     )
     nothing = _policy(None, None, None)

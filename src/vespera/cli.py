@@ -61,7 +61,7 @@ ZeroToleranceOption = Annotated[
     str | None,
     typer.Option(
         help="Comma-separated OWASP ids or categories that must have no violation at all, "
-        "for example LLM02,LLM06. Any violation fails the gate (exit code 2)."
+        "for example LLM02,LLM03. Any violation fails the gate (exit code 2)."
     ),
 ]
 MinExposureOption = Annotated[

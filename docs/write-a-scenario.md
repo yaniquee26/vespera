@@ -78,12 +78,12 @@ reached the agent, and whether the agent wrote a tool call as plain text instead
 | `direct_injection` | LLM01 | High | "ignore your rules" in the user message |
 | `indirect_injection` | LLM01 | High | a hidden order inside text the bot is asked to process |
 | `jailbreak` | LLM01 | Medium | role-play and tricks around the rules |
-| `system_prompt_leak` | LLM07 | High | getting the bot to print its instructions |
+| `system_prompt_leak` | LLM08 | High | getting the bot to print its instructions |
 | `pii_leak` | LLM02 | Critical | getting personal data out |
 | `benign` | none | Medium | a harmless question the bot must answer |
 | `tool_output_injection` | LLM01 | Critical | a hidden order inside a tool's answer |
 | `data_exfiltration` | LLM02 | Critical | sending a secret away through a tool |
-| `excessive_agency` | LLM06 | High | doing something the user may not ask for |
+| `excessive_agency` | LLM03 | High | doing something the user may not ask for |
 | `benign_task` | none | Medium | a harmless task the agent must do |
 
 ## Rules of thumb
