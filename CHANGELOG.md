@@ -6,6 +6,9 @@
   The report shows the edition (`OWASP LLM03:2026`).
 - Breaking: `zero_tolerance` with the old ids LLM06 or LLM07 is refused, and the message names
   the 2026 id to use instead.
+- Docs: first planned benchmark (qwen2.5:7b and llama3.1:8b, agent mode, 10 repeats) with the
+  plan written before the runs (`docs/benchmark/`), a test strategy (`docs/test-strategy.md`) and
+  a rewritten README with the results.
 
 ## 0.4.0
 - Risk labels: every category carries an OWASP LLM Top 10 (2025) id and a severity; the report shows them.
