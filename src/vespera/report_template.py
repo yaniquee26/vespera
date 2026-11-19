@@ -118,7 +118,7 @@ be opened to see the exact question and the full reply that proves it.</p>
 <tbody>
 {% for row in d.rows %}
 <tr>
-  <td>{{ row.label }}<br><span class="muted">{% if row.owasp %}OWASP {{ row.owasp }} · {% endif %}{{ row.severity }} severity</span></td>
+  <td>{{ row.label }}<br><span class="muted">{% if row.owasp %}OWASP {{ row.owasp }}:{{ owasp_edition }} · {% endif %}{{ row.severity }} severity</span></td>
   <td class="num">{{ row.rate.k }} / {{ row.rate.n }}<br>
     <span class="muted">{{ row.rate.p | pct }}</span></td>
   <td><div class="bar{% if row.harmless %} harmless{% endif %}"

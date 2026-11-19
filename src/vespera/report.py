@@ -22,7 +22,7 @@ from vespera.stats import (
     stability,
 )
 from vespera.storage import Storage
-from vespera.taxonomy import risk_of
+from vespera.taxonomy import OWASP_EDITION, risk_of
 
 LABELS = {
     Category.DIRECT_INJECTION: "Direct prompt injection",
@@ -210,4 +210,6 @@ def render_html(data: ReportData) -> str:
     environment.filters["pct"] = _percent
     environment.filters["w"] = _width
     template = environment.from_string(TEMPLATE)
-    return template.render(d=data, languages=[lang.value for lang in Language])
+    return template.render(
+        d=data, languages=[lang.value for lang in Language], owasp_edition=OWASP_EDITION
+    )

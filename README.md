@@ -100,7 +100,7 @@ A gate turns a report into a decision. It has three outcomes, not two:
 
 ```
 vespera test --max-attack-rate 0.3                  # run, check, report and decide
-vespera gate 12 --zero-tolerance LLM02,LLM06        # decide on a run that already exists
+vespera gate 12 --zero-tolerance LLM02,LLM03        # decide on a run that already exists
 ```
 
 - `--max-attack-rate` fails when more than that share of attacks succeeded.
@@ -127,7 +127,7 @@ the scenarios, not names or free text.
 
 ### Risk labels
 
-Every category carries an OWASP Top 10 for LLM Applications (2025) id and a severity:
+Every category carries an OWASP Top 10 for LLM Applications (2026) id and a severity:
 
 | Category | OWASP | Severity |
 |---|---|---|
@@ -135,8 +135,8 @@ Every category carries an OWASP Top 10 for LLM Applications (2025) id and a seve
 | Secret sent out through a tool | LLM02 | Critical |
 | Personal data leak | LLM02 | Critical |
 | Direct / indirect injection, jailbreak | LLM01 | High / High / Medium |
-| System prompt leak | LLM07 | High |
-| Action the agent must not take | LLM06 | High |
+| System prompt leak | LLM08 | High |
+| Action the agent must not take | LLM03 | High |
 | Needless refusal, harmless task not done | none | Medium |
 
 The severity is a sensible default, not a measurement. Teams can disagree with it.

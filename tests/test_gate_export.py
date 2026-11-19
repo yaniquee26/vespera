@@ -79,8 +79,8 @@ def checked_run(storage: Storage, provider: AgentProvider) -> int:
 def test_every_category_has_a_risk_and_only_security_ones_have_owasp_ids() -> None:
     assert set(RISKS) == set(Category)
     assert risk_of(Category.PII_LEAK).owasp == "LLM02"
-    assert risk_of(Category.SYSTEM_PROMPT_LEAK).owasp == "LLM07"
-    assert risk_of(Category.EXCESSIVE_AGENCY).owasp == "LLM06"
+    assert risk_of(Category.SYSTEM_PROMPT_LEAK).owasp == "LLM08"
+    assert risk_of(Category.EXCESSIVE_AGENCY).owasp == "LLM03"
     assert risk_of(Category.TOOL_OUTPUT_INJECTION).severity is Severity.CRITICAL
     assert risk_of(Category.BENIGN).owasp is None
     assert Severity.CRITICAL > Severity.LOW and Severity.HIGH.label == "High"
@@ -90,9 +90,9 @@ def test_selectors_match_owasp_ids_and_category_names_in_any_case() -> None:
     assert matches_selector(Category.DATA_EXFILTRATION, "llm02")
     assert matches_selector(Category.DATA_EXFILTRATION, " LLM02 ")
     assert matches_selector(Category.DATA_EXFILTRATION, "data_exfiltration")
-    assert not matches_selector(Category.DATA_EXFILTRATION, "LLM06")
+    assert not matches_selector(Category.DATA_EXFILTRATION, "LLM03")
     assert not matches_selector(Category.BENIGN, "LLM02")
-    assert {"LLM01", "LLM02", "LLM06", "LLM07", "pii_leak"} <= known_selectors()
+    assert {"LLM01", "LLM02", "LLM03", "LLM08", "pii_leak"} <= known_selectors()
 
 
 # ---------------------------------------------------------------- tool call written as text
@@ -167,7 +167,7 @@ def test_a_careful_agent_that_never_opened_the_tool_is_inconclusive_not_passed(
 
 def test_a_rule_that_nothing_tests_is_inconclusive(storage: Storage) -> None:
     data = build_report(storage, checked_run(storage, Careful()))
-    result = evaluate_gate(data, GatePolicy(zero_tolerance=("LLM07",), min_exposure=0.0))
+    result = evaluate_gate(data, GatePolicy(zero_tolerance=("LLM08",), min_exposure=0.0))
     assert result.status is GateStatus.INCONCLUSIVE
     assert "nothing in this run tests it" in result.reasons[0]
 
@@ -193,6 +193,14 @@ def test_a_wrong_policy_is_refused_with_a_clear_message(storage: Storage) -> Non
         evaluate_gate(data, GatePolicy(max_attack_rate=5))
     with pytest.raises(GateConfigError, match="min_exposure"):
         evaluate_gate(data, GatePolicy(min_exposure=-1))
+
+
+def test_an_id_from_the_2025_list_names_its_2026_replacement(storage: Storage) -> None:
+    data = build_report(storage, checked_run(storage, Careful()))
+    with pytest.raises(GateConfigError, match="'LLM06' was excessive agency .* it is LLM03"):
+        evaluate_gate(data, GatePolicy(zero_tolerance=("LLM06",)))
+    with pytest.raises(GateConfigError, match="'llm07' was system prompt leakage .* LLM08"):
+        evaluate_gate(data, GatePolicy(zero_tolerance=("llm07",)))
 
 
 # ---------------------------------------------------------------- masking
@@ -269,7 +277,7 @@ def test_junit_has_one_testcase_per_case_and_failures_carry_the_owasp_id(
     failed = [c for c in cases if c.find("failure") is not None]
     assert int(root.get("failures", "-1")) == len(failed) > 0
     kinds = {c.find("failure").get("type") for c in failed}  # type: ignore[union-attr]
-    assert {"LLM01", "LLM02", "LLM06"} <= kinds
+    assert {"LLM01", "LLM02", "LLM03"} <= kinds
     assert "CANARY-7F3A91" not in xml
     assert all(c.get("classname", "").startswith("vespera.") for c in cases)
 
@@ -304,7 +312,7 @@ def test_gate_command_sets_the_exit_code_and_writes_both_files(tmp_path: Path) -
     out_json, out_xml = tmp_path / "results.json", tmp_path / "junit.xml"
     result = CliRunner().invoke(
         app,
-        ["gate", "--db", str(db), "--zero-tolerance", "LLM02,LLM06",
+        ["gate", "--db", str(db), "--zero-tolerance", "LLM02,LLM03",
          "--json", str(out_json), "--junit", str(out_xml)],
     )
     assert result.exit_code == 2, result.output
@@ -379,7 +387,7 @@ def test_test_command_can_gate_by_risk_and_export(tmp_path: Path) -> None:
 
 def test_every_report_row_shows_the_risk_label(storage: Storage) -> None:
     html = render_html(build_report(storage, checked_run(storage, Gullible())))
-    assert "OWASP LLM02 · Critical severity" in html
+    assert "OWASP LLM02:2026 · Critical severity" in html
     assert "Medium severity" in html  # the harmless-task row has no OWASP id
 
 

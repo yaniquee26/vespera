@@ -69,7 +69,7 @@ cli → report / compare / summary / gate / export → findings / stats
 OpenAI-совместимый, Http, агентные провайдеры), `scenarios`, `agent_scenarios`, `checks`,
 `runner`, `agent_runner`, `storage` (SQLite: runs, cases, attempts, traces, check_results),
 `snapshot`, `stats` (Уилсон, нестабильность), `findings`, `summary`, `report` + `report_template`
-(один HTML, Jinja2 autoescape), `compare` + `compare_template`, `taxonomy` (OWASP LLM Top 10 2025
+(один HTML, Jinja2 autoescape), `compare` + `compare_template`, `taxonomy` (OWASP LLM Top 10 2026
 + серьёзность), `gate` (passed 0 / failed 2 / inconclusive 3), `export` (results.json схема
 `vespera.results/1`, JUnit, маскирование), `config` (vespera.yaml), `bundled` + `data/`, `doctor`, `cli`.
 async только в провайдерах и раннере.
@@ -82,8 +82,8 @@ async только в провайдерах и раннере.
 - Агентный режим: цикл вызова инструментов с имитированными инструментами, журнал `AgentTrace`,
   замер «дошёл ли скрытый приказ до агента» (exposure), дрейф языка в другой алфавит = `other`.
 - Таксономия: direct_injection LLM01 High; indirect_injection LLM01 High; jailbreak LLM01 Medium;
-  system_prompt_leak LLM07 High; pii_leak LLM02 Critical; tool_output_injection LLM01 Critical;
-  data_exfiltration LLM02 Critical; excessive_agency LLM06 High; benign / benign_task — без OWASP, Medium.
+  system_prompt_leak LLM08 High; pii_leak LLM02 Critical; tool_output_injection LLM01 Critical;
+  data_exfiltration LLM02 Critical; excessive_agency LLM03 High; benign / benign_task — без OWASP, Medium.
 - Гейт: нарушение важнее сомнения; правило, которое ничто не тестирует → inconclusive.
   Опции: `max_attack_rate`, `zero_tolerance` (OWASP id или имя категории), `min_exposure`.
 - Экспорт маскирует canary-токены, длинные числа и секреты из сценариев; `--reveal` снимает маску.

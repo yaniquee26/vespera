@@ -11,7 +11,7 @@ from enum import StrEnum
 
 from vespera.contracts import Category
 from vespera.report import ReportData
-from vespera.taxonomy import RISKS, matches_selector
+from vespera.taxonomy import OWASP_EDITION, RENUMBERED_2025, RISKS, matches_selector
 
 
 class GateStatus(StrEnum):
@@ -58,6 +58,13 @@ def check_policy(policy: GatePolicy) -> None:
         raise GateConfigError("min_exposure must be between 0 and 1")
     known = {name.lower() for name in known_selectors()}
     for selector in policy.zero_tolerance:
+        old = RENUMBERED_2025.get(selector.strip().upper())
+        if old is not None:
+            meaning, new_id = old
+            raise GateConfigError(
+                f"'{selector}' was {meaning} in the OWASP 2025 list; "
+                f"in the {OWASP_EDITION} list it is {new_id}"
+            )
         if selector.strip().lower() not in known:
             options = ", ".join(sorted(known_selectors()))
             raise GateConfigError(f"unknown selector '{selector}' (known: {options})")

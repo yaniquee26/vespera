@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+- Risk labels follow the OWASP Top 10 for LLM Applications **2026**: excessive agency is now
+  LLM03 (was LLM06), system prompt leakage is LLM08 "Hidden context exposure" (was LLM07).
+  The report shows the edition (`OWASP LLM03:2026`).
+- Breaking: `zero_tolerance` with the old ids LLM06 or LLM07 is refused, and the message names
+  the 2026 id to use instead.
+
 ## 0.4.0
 - Risk labels: every category carries an OWASP LLM Top 10 (2025) id and a severity; the report shows them.
 - Gate with three outcomes (passed / failed / inconclusive): `--max-attack-rate`,
