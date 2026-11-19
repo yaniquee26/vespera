@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.4)
+## 0.4.0
 - Risk labels: every category carries an OWASP LLM Top 10 (2025) id and a severity; the report shows them.
 - Gate with three outcomes (passed / failed / inconclusive): `--max-attack-rate`,
   `--zero-tolerance LLM02,LLM06`, `--min-exposure`. New command `vespera gate`; exit codes 0, 2, 3.
