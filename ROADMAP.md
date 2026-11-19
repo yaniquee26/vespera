@@ -15,13 +15,14 @@
 - [x] R1. Бенчмарк: qwen2.5:7b и llama3.1:8b, 10 повторов, гипотезы записаны заранее
       (`docs/benchmark/plan.md`), итоги в `docs/benchmark/results.md` и в README
 - [x] README как витрина, `docs/test-strategy.md`
+- [x] R4. Отчёты на GitHub Pages: `docs/index.html` + `docs/reports/` (источник Pages: main, /docs)
 
 ## Дальше (путь к v1.0)
 
 1. ~~R1. Реальный бенчмарк~~ сделано.
 2. **R2. Проход code-simplifier:** упростить код без изменения поведения; тесты зелёные до и после.
 3. **R3. README с настоящими цифрами** и объяснением для человека, который не знает проект.
-4. **R4. Пример отчёта на GitHub Pages** (один HTML, без секретов).
+4. ~~R4. Пример отчёта на GitHub Pages~~ сделано.
 5. **R5. Запись экрана 30–60 с:** `init` → `test` → отчёт → гейт.
 6. **R6. Тег v1.0.0 и GitHub Release** (с CHANGELOG).
 

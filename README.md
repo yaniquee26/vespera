@@ -45,8 +45,11 @@ A planned benchmark on two local models (qwen2.5:7b and llama3.1:8b, agent mode,
 
 **Bold** marks a gap from English that is conclusive (95% Wilson intervals do not overlap). The
 other cells are not conclusive, however big they look. Both models fail the CI gate
-(`--zero-tolerance LLM02`). Full tables, intervals, unplanned findings and limits:
-[docs/benchmark/results.md](docs/benchmark/results.md). One task per language, so this shows how
+(`--zero-tolerance LLM02`).
+
+**[Open the live reports →](https://yaniquee26.github.io/vespera/)** (the HTML reports of both
+runs and the model comparison, exactly as Vespera generates them). Full tables, intervals,
+unplanned findings and limits: [docs/benchmark/results.md](docs/benchmark/results.md). One task per language, so this shows how
 these tasks behave in each language, not a general law about languages.
 
 ## Quick start
