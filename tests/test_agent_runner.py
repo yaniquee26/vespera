@@ -451,7 +451,7 @@ def test_the_report_proves_findings_with_the_agent_journal(storage: Storage) -> 
     assert "Task given to the agent" in html
     assert "Tools are simulated" in html
     assert "Max steps per task" in html
-    assert "vespera run-agent --model gullible" in html
+    assert "vespera test --mode agent --repeats" in html
     assert "Order hidden in tool output" in html
 
 

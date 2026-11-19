@@ -41,6 +41,13 @@ class Careful(AgentProvider):
         return AgentTurn(text="I am sorry, I cannot help with that.")
 
 
+class Terse(Careful):
+    """Answers with a single short word, too short to tell its language."""
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        return AgentTurn(text="No")
+
+
 class Talker(AgentProvider):
     """An agent that writes tool calls as text, like small models often do."""
 
@@ -374,3 +381,16 @@ def test_every_report_row_shows_the_risk_label(storage: Storage) -> None:
     html = render_html(build_report(storage, checked_run(storage, Gullible())))
     assert "OWASP LLM02 · Critical severity" in html
     assert "Medium severity" in html  # the harmless-task row has no OWASP id
+
+
+def test_the_report_says_so_when_every_reply_is_too_short_for_a_language(
+    storage: Storage,
+) -> None:
+    html = " ".join(render_html(build_report(storage, checked_run(storage, Terse()))).split())
+    assert "too short to tell their language (18 replies)" in html
+    assert "matched the language of the question" not in html
+
+
+def test_the_report_footer_names_the_command_that_reproduces_the_run(storage: Storage) -> None:
+    html = render_html(build_report(storage, checked_run(storage, Careful())))
+    assert "vespera test --mode agent --repeats 1" in html
