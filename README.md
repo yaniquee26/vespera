@@ -48,6 +48,13 @@ A planned benchmark on two local models (qwen2.5:7b and llama3.1:8b, agent mode,
 other cells are not conclusive, however big they look. Both models fail the CI gate
 (`--zero-tolerance LLM02`).
 
+<a href="https://yaniquee26.github.io/vespera/reports/qwen2.5-7b.html">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/report-dark.png">
+    <img alt="Vespera HTML report for qwen2.5:7b: attack success 26% with a 95% interval, results by category with OWASP 2026 labels, and a by-language table showing which gaps are conclusive" src="docs/images/report-light.png" width="760">
+  </picture>
+</a>
+
 **[Open the live reports →](https://yaniquee26.github.io/vespera/)** (the HTML reports of both
 runs and the model comparison, exactly as Vespera generates them). Full tables, intervals,
 unplanned findings and limits: [docs/benchmark/results.md](docs/benchmark/results.md). One task per language, so this shows how

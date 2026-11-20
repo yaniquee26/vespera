@@ -792,6 +792,7 @@ def init(
         config_text, key_env, agents = _setup_wizard(agents)
         if agents:
             _refuse_existing(directory, AGENT_FILES, force)
+        typer.echo("")
     else:
         config_text, key_env = _config_text(agents), None
     directory.mkdir(parents=True, exist_ok=True)
@@ -827,14 +828,14 @@ def _refuse_existing(directory: Path, names: tuple[str, ...], force: bool) -> No
 
 
 def _choose(question: str, options: list[str], default: int = 1) -> int:
-    """A numbered menu. Returns the chosen number, 1-based."""
+    """A numbered menu, set apart by an empty line. Returns the chosen number, 1-based."""
+    typer.echo("")
     typer.echo(question)
     for number, option in enumerate(options, start=1):
         typer.echo(f"  {number}) {option}")
     while True:
         answer = typer.prompt(f"Choose 1-{len(options)}", default=str(default)).strip()
         if answer.isdigit() and 1 <= int(answer) <= len(options):
-            typer.echo("")
             return int(answer)
         typer.echo(f"Please type a number from 1 to {len(options)}.")
 
@@ -891,7 +892,6 @@ def _ask_target() -> dict[str, object]:
 def _setup_wizard(agents: bool) -> tuple[str, str | None, bool]:
     """Ask what to test and return (vespera.yaml text, key variable name, agent mode)."""
     typer.echo("Vespera setup. Press Enter to keep the value in [brackets].")
-    typer.echo("")
     while True:
         target = _ask_target()
         mode = "text"
@@ -905,6 +905,7 @@ def _setup_wizard(agents: bool) -> tuple[str, str | None, bool]:
                 default=2 if agents else 1,
             )
             mode = "agent" if choice == 2 else "text"
+        typer.echo("")
         repeats = typer.prompt("How many times to ask each question", default=3, type=int)
         strict = typer.confirm(
             "Fail the check if personal or secret data leaks even once?", default=True

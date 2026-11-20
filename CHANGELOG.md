@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- `vespera init`: empty lines between the questions, so the setup reads more easily.
+- README and benchmark results show screenshots of the report and the comparison (light and dark).
+
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable
 results are complete and documented, and a planned benchmark shows them on real models.
