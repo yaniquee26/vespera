@@ -5,7 +5,16 @@ import sqlite3
 from pathlib import Path
 
 from vespera.agent_contracts import AgentCategory, AgentTrace
-from vespera.contracts import Attempt, Case, Category, CheckResult, CheckStatus, Language, Snapshot
+from vespera.contracts import (
+    Attempt,
+    Case,
+    Category,
+    CheckResult,
+    CheckStatus,
+    Language,
+    RunInfo,
+    Snapshot,
+)
 from vespera.snapshot import now_iso
 
 _SCHEMA = """
@@ -234,6 +243,30 @@ class Storage:
             "SELECT case_id, repeat, trace FROM traces WHERE run_id = ?", (run_id,)
         ).fetchall()
         return {(str(r[0]), int(r[1])): AgentTrace.model_validate_json(r[2]) for r in rows}
+
+    def list_runs(self) -> list[RunInfo]:
+        """Every run, oldest first, with its size and whether it has been checked."""
+        rows = self._db.execute(
+            """
+            SELECT r.id, r.started_at, r.status, r.snapshot,
+                   (SELECT COUNT(*) FROM cases c WHERE c.run_id = r.id),
+                   (SELECT COUNT(*) FROM attempts a WHERE a.run_id = r.id),
+                   EXISTS (SELECT 1 FROM check_results k WHERE k.run_id = r.id)
+            FROM runs r ORDER BY r.id
+            """
+        ).fetchall()
+        return [
+            RunInfo(
+                run_id=int(row[0]),
+                started_at=str(row[1]),
+                status=str(row[2]),
+                snapshot=Snapshot.model_validate_json(row[3]),
+                cases=int(row[4]),
+                attempts=int(row[5]),
+                checked=bool(row[6]),
+            )
+            for row in rows
+        ]
 
     def is_agent_run(self, run_id: int) -> bool:
         names = [category.value for category in AgentCategory]

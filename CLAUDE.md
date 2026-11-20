@@ -48,7 +48,7 @@ ruff check . --no-cache
 mypy src
 pytest
 ```
-Все три зелёные. Сейчас: **330 тестов**, покрытие ~99%. CI (GitHub Actions, ubuntu, Python 3.12)
+Все три зелёные. Сейчас: **356 тестов**, покрытие ~99%. CI (GitHub Actions, ubuntu, Python 3.12)
 запускает то же самое. Не снижай покрытие.
 
 - Python 3.12+, src-раскладка (`src/vespera`), ruff line-length 100, mypy `disallow_untyped_defs`.
@@ -94,11 +94,11 @@ async только в провайдерах и раннере.
 
 ## 5. Команды CLI
 
-`version`, `doctor`, `ask`, `validate`, `run`, `run-agent`, `show`, `check [--mask]`, `report`,
+`version`, `doctor`, `ask`, `validate`, `run`, `run-agent`, `show`, `check [--mask]`, `report [--open]`, `runs`,
 `compare`, `init [--agents --force --directory]`, `test [--config --no-config --mode --json --junit
 --reveal --zero-tolerance --min-exposure --max-attack-rate --limit --repeats]`, `gate`, `export`.
 
-Типичный путь пользователя: `vespera init` → правка `vespera.yaml` → `vespera test` → открыть отчёт;
+Типичный путь: `vespera init` (вопросы, готовый `vespera.yaml`) → `vespera test --open`; без файла: `vespera test openai:MODEL` (префиксы ollama, openai, openrouter, lmstudio, mock — `config.parse_target`);
 в CI — `vespera test` с кодом выхода 0/2/3.
 
 ## 6. Окружение пользователя
@@ -109,7 +109,8 @@ Ryzen 7 7435HS, 16 GB RAM, RTX 4060 8 GB. Ollama: `qwen2.5:7b` и `llama3.1:8b` 
 
 ## 7. Состояние на сейчас
 
-Версия **0.4.0 «Product»**. Готово: текстовый режим (сценарии EN/RU/RO), статистика, отчёт,
+Версия **1.0.0** (20.11.2026; до неё 0.4.0 «Product»). Отчёты на GitHub Pages:
+https://yaniquee26.github.io/vespera/ (исходники в `docs/`, источник Pages: main, /docs). Готово: текстовый режим (сценарии EN/RU/RO), статистика, отчёт,
 сравнение прогонов, поддержка любого бота (OpenAI-совместимый и HTTP), упаковка (`init`, `test`,
 CI-гейт, LICENSE, CHANGELOG), агентный модуль (6 сценариев × 3 языка), таксономия OWASP,
 трёхисходный гейт, экспорт results.json/JUnit, vespera.yaml, документация (`docs/`).
