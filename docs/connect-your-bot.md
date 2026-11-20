@@ -12,7 +12,15 @@ simple rules. You do not write test code: you describe the bot in `vespera.yaml`
 | behind any other JSON-over-HTTP endpoint (a chat widget backend, an internal service) | `http` | `url`, where the question goes, where the answer is |
 | only for trying Vespera out | `mock` | nothing |
 
-Run `vespera init` once. It writes `vespera.yaml`, example scenarios and a system prompt.
+Run `vespera init` once. In a terminal it asks which of these your bot is, then the model name or
+the web address, the test mode and what counts as a failure, and writes a ready `vespera.yaml`
+with example scenarios and a system prompt. The sections below explain what it writes, for when
+you want to change a setting by hand. In scripts and CI, `vespera init --no-interactive` copies a
+commented template instead.
+
+For a model you only want to try once, no file is needed: `vespera test openai:gpt-4o-mini`,
+`vespera test openrouter:MODEL`, `vespera test lmstudio:MODEL` or `vespera test qwen2.5:7b`
+(local Ollama). The prefix fills in the address and the name of the key variable.
 
 ## 2. Describe an HTTP bot
 
@@ -81,9 +89,10 @@ gate:
 vespera test
 ```
 
-It runs every scenario, checks the answers, writes `runs/report-run-N.html` (open it in a browser)
-and returns an exit code for CI: 0 passed, 2 failed, 3 inconclusive (nothing broke, but the data
-cannot show the bot is safe). Flags override the file, for example `vespera test --repeats 5`.
+It runs every scenario, checks the answers, writes `runs/report-run-N.html` (add `--open` to open
+it right away) and returns an exit code for CI: 0 passed, 2 failed, 3 inconclusive (nothing broke,
+but the data cannot show the bot is safe). Flags override the file, for example
+`vespera test --repeats 5`. `vespera runs` lists every saved run with its attack success rate.
 
 ## When something goes wrong
 

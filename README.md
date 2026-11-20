@@ -1,7 +1,8 @@
 # Vespera
 
 [![CI](https://github.com/yaniquee26/vespera/actions/workflows/ci.yml/badge.svg)](https://github.com/yaniquee26/vespera/actions/workflows/ci.yml)
-![version](https://img.shields.io/badge/version-0.4.0-blue)
+[![release](https://img.shields.io/github/v/release/yaniquee26/vespera)](https://github.com/yaniquee26/vespera/releases)
+[![reports](https://img.shields.io/badge/live%20reports-GitHub%20Pages-blue)](https://yaniquee26.github.io/vespera/)
 ![python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -56,18 +57,47 @@ these tasks behave in each language, not a general law about languages.
 
 ```powershell
 pip install git+https://github.com/yaniquee26/vespera
-vespera init       # writes vespera.yaml, example scenarios and a system prompt
-# 1. open vespera.yaml and describe your target (model, OpenAI-style API or any HTTP bot)
-# 2. put YOUR bot's system prompt in system_prompt.txt, keep a CANARY-XXXXXX line
-vespera test       # run + check + report + gate, driven by vespera.yaml
+vespera init          # answers 3-4 questions and writes a ready vespera.yaml
+vespera test --open   # run, check, report, gate; the report opens in the browser
 ```
 
-`vespera run --mock` uses a fake model, so everything can be tried without a GPU.
+`vespera init` asks what you want to test (a local model, an API such as OpenAI or OpenRouter, or
+your own bot behind a web address), which mode, and what counts as a failure. No file needs to be
+edited by hand. API keys are never asked for or written down: Vespera tells you which environment
+variable to set.
 
-`vespera.yaml` replaces a long command line: the target, the number of repeats, what counts as
-acceptable (the gate) and where the machine-readable results go. Flags still win over the file.
-Unknown keys are refused so a typo cannot pass silently, and a key is never written in the file:
-only the name of the environment variable that holds it.
+### One-word targets
+
+To try a model without any project file, name it on the command line:
+
+```powershell
+vespera test qwen2.5:7b                                   # a local Ollama model
+vespera test openai:gpt-4o-mini                           # reads OPENAI_API_KEY
+vespera test openrouter:meta-llama/llama-3.1-8b-instruct  # reads OPENROUTER_API_KEY
+vespera test lmstudio:qwen2.5-7b-instruct                 # LM Studio on this computer
+vespera test mock                                         # a fake model, no GPU needed
+```
+
+Add `--mode agent` to test tool use, `--repeats 10` for narrower intervals.
+
+### Your runs
+
+```text
+> vespera runs
+ID  STARTED           MODEL        MODE   SIZE     ATTACKS SUCCEEDED
+1   2026-11-19 23:37  qwen2.5:7b   agent  18 x 10  31/120 = 26% (95% CI 19%-34%)
+2   2026-11-19 23:42  llama3.1:8b  agent  18 x 10  45/120 = 38% (95% CI 29%-46%)
+```
+
+Then `vespera report 2 --open`, `vespera compare 1 2 --open` or `vespera gate 2`.
+
+### The project file
+
+`vespera.yaml` keeps the target, the number of repeats, what counts as acceptable (the gate) and
+where the machine-readable results go, so the same check runs the same way on every machine and
+in CI. Flags and the one-word target still win over the file. Unknown keys are refused so a typo
+cannot pass silently, and a key is never written in the file: only the name of the environment
+variable that holds it.
 
 ```yaml
 target: {type: http, url: https://my-bot.example.com/chat, reply_field: answer,
@@ -178,15 +208,16 @@ vespera validate               # is the scenario file valid?
 vespera run --limit 6          # ask the first 6 cases to a local Ollama model
 vespera show                   # print the saved answers of the latest run
 vespera check                  # find violations in the latest run
-vespera report                 # build a single HTML report page
-vespera compare 5 6            # compare two runs, with intervals
+vespera report --open          # build a single HTML report page and open it
+vespera runs                   # list saved runs with their attack success rate
+vespera compare 1 2 --open     # compare two runs, with intervals
 ```
 
 To test a hosted model, put the key in an environment variable, never in a file:
 
 ```powershell
 $env:OPENAI_API_KEY = "sk-..."
-vespera run --provider openai --base-url https://api.openai.com/v1 --model gpt-4o-mini --repeats 3
+vespera test openai:gpt-4o-mini --repeats 3
 ```
 
 ## Known limitations

@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 (2026-11-20)
+First stable release: text and agent testing, statistics, reports, CI gate and machine-readable
+results are complete and documented, and a planned benchmark shows them on real models.
+
+- `vespera init` asks what to test (a local model, an API, or a bot behind a web address), the mode
+  and the gate rules, and writes a ready `vespera.yaml`. `--no-interactive` keeps the template.
+- One-word targets: `vespera test qwen2.5:7b`, `openai:MODEL`, `openrouter:MODEL`,
+  `lmstudio:MODEL`, `mock`. The prefix fills in the address and the key variable.
+- `vespera runs` lists saved runs with model, mode, size and attack success rate with its interval.
+- `--open` on `test`, `report` and `compare` opens the HTML page in the browser.
+
 - Risk labels follow the OWASP Top 10 for LLM Applications **2026**: excessive agency is now
   LLM03 (was LLM06), system prompt leakage is LLM08 "Hidden context exposure" (was LLM07).
   The report shows the edition (`OWASP LLM03:2026`).
@@ -9,6 +19,12 @@
 - Docs: first planned benchmark (qwen2.5:7b and llama3.1:8b, agent mode, 10 repeats) with the
   plan written before the runs (`docs/benchmark/`), a test strategy (`docs/test-strategy.md`) and
   a rewritten README with the results.
+- Benchmark reports published on GitHub Pages: <https://yaniquee26.github.io/vespera/>.
+- Tests: every test runs in its own empty folder, so a stray `vespera.yaml` cannot change results.
+- Report: a clear sentence when every reply is too short to tell its language; the footer names the
+  `vespera test` command that reproduces the run.
+- Internal: text and agent runs share one code path in the command line module.
+- Package metadata: keywords, classifiers and project links.
 
 ## 0.4.0
 - Risk labels: every category carries an OWASP LLM Top 10 (2025) id and a severity; the report shows them.

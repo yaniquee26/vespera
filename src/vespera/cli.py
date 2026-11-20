@@ -1,8 +1,11 @@
 """Command line interface: `vespera version`, `doctor`, `ask`."""
 
 import os
+import sys
+import webbrowser
 from collections import Counter
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -17,8 +20,15 @@ from vespera.agent_scenarios import expand_agent_cases, load_agent_scenarios
 from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bundled
 from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
-from vespera.config import ConfigError, ProjectConfig, TargetConfig, load_config
-from vespera.contracts import Case, Category, Snapshot
+from vespera.config import (
+    TARGET_EXAMPLES,
+    ConfigError,
+    ProjectConfig,
+    TargetConfig,
+    load_config,
+    parse_target,
+)
+from vespera.contracts import Case, Category, RunInfo, Snapshot
 from vespera.doctor import all_required_ok, run_all
 from vespera.export import build_junit, build_results, mask, render_json, secrets_of
 from vespera.gate import (
@@ -88,6 +98,9 @@ ConfigOption = Annotated[
 ]
 NoConfigOption = Annotated[
     bool, typer.Option("--no-config", help="Ignore vespera.yaml and use only the flags.")
+]
+OpenOption = Annotated[
+    bool, typer.Option("--open", help="Open the HTML report in the browser when it is ready.")
 ]
 
 
@@ -183,9 +196,17 @@ def _resolve_target(
     provider_kind: str | None,
     base_url: str | None,
     api_key_env: str | None,
+    spec: str | None = None,
 ) -> TargetConfig:
-    """The target from vespera.yaml (or the old defaults), with any flag laid on top."""
-    target = project.target if project else TargetConfig(type="ollama", model="gemma3:4b")
+    """The target from the command line, else vespera.yaml, else the default; flags on top."""
+    if spec is not None:
+        try:
+            target = parse_target(spec)
+        except ConfigError as exc:
+            typer.echo(f"[FAIL] {exc}")
+            raise typer.Exit(code=1) from exc
+    else:
+        target = project.target if project else TargetConfig(type="ollama", model="gemma3:4b")
     updates: dict[str, str] = {}
     if provider_kind is not None:
         if provider_kind not in ("ollama", "openai"):
@@ -637,6 +658,7 @@ def report(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
     out: Annotated[Path | None, typer.Option(help="Where to write the HTML page.")] = None,
+    open_report: OpenOption = False,
 ) -> None:
     """Build a single HTML report page for a run (run `vespera check` first)."""
     storage = Storage(db)
@@ -655,7 +677,66 @@ def report(
     target = out or db.parent / f"report-run-{chosen}.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(html, encoding="utf-8")
-    typer.echo(f"[OK] report written to {target}. Open it in a browser.")
+    _announce_page("report", target, open_report)
+
+
+@app.command()
+def runs(
+    db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
+) -> None:
+    """List the saved runs: id, date, model, mode, size and attack success rate."""
+    if not db.exists():
+        typer.echo(f"No runs yet: {db} does not exist. Start with `vespera test`.")
+        return
+    storage = Storage(db)
+    try:
+        listed = storage.list_runs()
+        if not listed:
+            typer.echo("No runs yet. Start with `vespera test`.")
+            return
+        rows = [_run_row(storage, info) for info in listed]
+    finally:
+        storage.close()
+    header = ("ID", "STARTED", "MODEL", "MODE", "SIZE", "ATTACKS SUCCEEDED")
+    widths = [max(len(row[i]) for row in (header, *rows)) for i in range(len(header))]
+    for row in (header, *rows):
+        cells = (cell.ljust(width) for cell, width in zip(row, widths, strict=True))
+        typer.echo("  ".join(cells).rstrip())
+    typer.echo("")
+    typer.echo("Open a report: vespera report ID --open   Compare: vespera compare A B   "
+               "Decide: vespera gate ID")
+
+
+def _run_row(storage: Storage, info: RunInfo) -> tuple[str, ...]:
+    snapshot = info.snapshot
+    mode = "agent" if snapshot.max_steps is not None else "text"
+    expected = info.cases * snapshot.repeats
+    size = f"{info.cases} x {snapshot.repeats}"
+    if info.attempts < expected:
+        size += f" ({info.attempts}/{expected} done)"
+    if not info.checked:
+        result = "not checked (vespera check)"
+    else:
+        try:
+            rate = build_report(storage, info.run_id).attack_rate
+        except ReportError:
+            rate = None
+        result = (
+            "no attacks"
+            if rate is None
+            else f"{rate.k}/{rate.n} = {rate.p:.0%} (95% CI {rate.low:.0%}-{rate.high:.0%})"
+        )
+    started = datetime.fromisoformat(info.started_at).astimezone().strftime("%Y-%m-%d %H:%M")
+    return (str(info.run_id), started, snapshot.model, mode, size, result)
+
+
+def _announce_page(kind: str, path: Path, open_it: bool) -> None:
+    """Say where an HTML page was written and, if asked, open it in the default browser."""
+    if open_it:
+        typer.echo(f"[OK] {kind} written to {path}, opening it in the browser")
+        webbrowser.open(path.resolve().as_uri())
+    else:
+        typer.echo(f"[OK] {kind} written to {path}. Open it in a browser (or add --open).")
 
 
 @app.command()
@@ -664,8 +745,12 @@ def compare(
     run_b: Annotated[int, typer.Argument(help="Id of the second run (model B).")],
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
     out: Annotated[Path | None, typer.Option(help="Where to write the HTML page.")] = None,
+    open_report: OpenOption = False,
 ) -> None:
-    """Compare two checked runs (same questions, two models) on one HTML page."""
+    """Compare two checked runs (same questions, two models) on one HTML page.
+
+    `vespera runs` lists the run ids.
+    """
     storage = Storage(db)
     try:
         try:
@@ -678,7 +763,7 @@ def compare(
     target = out or db.parent / f"compare-run-{run_a}-vs-{run_b}.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(html, encoding="utf-8")
-    typer.echo(f"[OK] comparison written to {target}. Open it in a browser.")
+    _announce_page("comparison", target, open_report)
 
 
 @app.command()
@@ -686,22 +771,171 @@ def init(
     directory: Annotated[Path, typer.Option(help="Folder for the example files.")] = Path("."),
     force: Annotated[bool, typer.Option(help="Overwrite files that already exist.")] = False,
     agents: Annotated[bool, typer.Option(help="Also copy the files for agent tests.")] = False,
+    interactive: Annotated[
+        bool | None,
+        typer.Option(
+            "--interactive/--no-interactive",
+            help="Ask a few questions and write a ready vespera.yaml "
+            "(default: yes in a terminal, no in scripts and CI).",
+            show_default=False,
+        ),
+    ] = None,
 ) -> None:
-    """Copy the example scenarios and system prompt into a folder, ready to edit."""
+    """Set up a project folder: example scenarios, a system prompt and vespera.yaml.
+
+    In a terminal it asks what to test and writes a ready vespera.yaml, so no file needs editing.
+    """
+    ask = sys.stdin.isatty() if interactive is None else interactive
+    _refuse_existing(directory, (*BUNDLED_FILES, *(AGENT_FILES if agents else ()), CONFIG_TEMPLATE),
+                     force)
+    if ask:
+        config_text, key_env, agents = _setup_wizard(agents)
+        if agents:
+            _refuse_existing(directory, AGENT_FILES, force)
+    else:
+        config_text, key_env = _config_text(agents), None
     directory.mkdir(parents=True, exist_ok=True)
-    names = (*BUNDLED_FILES, *AGENT_FILES) if agents else BUNDLED_FILES
-    existing = [name for name in (*names, CONFIG_TEMPLATE) if (directory / name).exists()]
+    for name in (*BUNDLED_FILES, *AGENT_FILES) if agents else BUNDLED_FILES:
+        (directory / name).write_text(read_bundled(name), encoding="utf-8")
+        typer.echo(f"[OK] wrote {directory / name}")
+    (directory / CONFIG_TEMPLATE).write_text(config_text, encoding="utf-8")
+    typer.echo(f"[OK] wrote {directory / CONFIG_TEMPLATE}")
+    if not ask:
+        typer.echo("Next: open vespera.yaml and set the target (your model or bot), put YOUR bot's")
+        typer.echo("system prompt in system_prompt.txt (keep a CANARY-XXXXXX line),")
+        typer.echo("then run `vespera test`.")
+        return
+    typer.echo("")
+    if key_env:
+        typer.echo("Before the first run, put your API key in an environment variable:")
+        typer.echo(f"  {_set_key_command(key_env, windows=os.name == 'nt')}")
+        typer.echo("The key is never written to a file, the database or a report.")
+    typer.echo("Ready. Run:  vespera test --open")
+
+
+def _set_key_command(key_env: str, windows: bool) -> str:
+    if windows:
+        return f'$env:{key_env} = "your-key"      (PowerShell, this window only)'
+    return f'export {key_env}="your-key"'
+
+
+def _refuse_existing(directory: Path, names: tuple[str, ...], force: bool) -> None:
+    existing = [name for name in names if (directory / name).exists()]
     if existing and not force:
         typer.echo(f"[FAIL] already exists: {', '.join(existing)}. Use --force to overwrite.")
         raise typer.Exit(code=1)
-    for name in names:
-        (directory / name).write_text(read_bundled(name), encoding="utf-8")
-        typer.echo(f"[OK] wrote {directory / name}")
-    (directory / CONFIG_TEMPLATE).write_text(_config_text(agents), encoding="utf-8")
-    typer.echo(f"[OK] wrote {directory / CONFIG_TEMPLATE}")
-    typer.echo("Next: open vespera.yaml and set the target (your model or bot), put YOUR bot's")
-    typer.echo("system prompt in system_prompt.txt (keep a CANARY-XXXXXX line),")
-    typer.echo("then run `vespera test`.")
+
+
+def _choose(question: str, options: list[str], default: int = 1) -> int:
+    """A numbered menu. Returns the chosen number, 1-based."""
+    typer.echo(question)
+    for number, option in enumerate(options, start=1):
+        typer.echo(f"  {number}) {option}")
+    while True:
+        answer = typer.prompt(f"Choose 1-{len(options)}", default=str(default)).strip()
+        if answer.isdigit() and 1 <= int(answer) <= len(options):
+            typer.echo("")
+            return int(answer)
+        typer.echo(f"Please type a number from 1 to {len(options)}.")
+
+
+def _ask_target() -> dict[str, object]:
+    kind = _choose(
+        "What do you want to test?",
+        [
+            "a model on this computer (Ollama)",
+            "a model behind an API (OpenAI, OpenRouter, LM Studio or another OpenAI-style server)",
+            "your own chatbot behind a web address (HTTP)",
+        ],
+    )
+    if kind == 1:
+        model = typer.prompt("Ollama model name", default="qwen2.5:7b").strip()
+        return {"type": "ollama", "model": model}
+    if kind == 2:
+        service = _choose(
+            "Which service?",
+            ["OpenAI", "OpenRouter", "LM Studio (on this computer)", "another OpenAI-style server"],
+        )
+        if service <= 3:
+            prefix, example = [
+                ("openai", "gpt-4o-mini"),
+                ("openrouter", "meta-llama/llama-3.1-8b-instruct"),
+                ("lmstudio", "qwen2.5-7b-instruct"),
+            ][service - 1]
+            model = typer.prompt("Model name", default=example).strip()
+            preset = parse_target(f"{prefix}:{model}")
+            return preset.model_dump(include={"type", "model", "base_url", "api_key_env"},
+                                     exclude_none=True)
+        base_url = typer.prompt("API address (ending in /v1)").strip()
+        model = typer.prompt("Model name").strip()
+        key_env = typer.prompt(
+            "Name of the environment variable with the API key", default="OPENAI_API_KEY"
+        ).strip()
+        return {"type": "openai", "model": model, "base_url": base_url, "api_key_env": key_env}
+    url = typer.prompt("Web address of the chat endpoint (https://...)").strip()
+    request_field = typer.prompt("JSON field that carries the question", default="message").strip()
+    reply_field = typer.prompt(
+        "JSON field of the answer in the reply (dotted path, e.g. data.text)", default="answer"
+    ).strip()
+    key_env = typer.prompt(
+        "Name of the environment variable with the API key (leave empty if none)", default=""
+    ).strip()
+    target: dict[str, object] = {
+        "type": "http", "url": url, "request_field": request_field, "reply_field": reply_field
+    }
+    if key_env:
+        target["api_key_env"] = key_env
+    return target
+
+
+def _setup_wizard(agents: bool) -> tuple[str, str | None, bool]:
+    """Ask what to test and return (vespera.yaml text, key variable name, agent mode)."""
+    typer.echo("Vespera setup. Press Enter to keep the value in [brackets].")
+    typer.echo("")
+    while True:
+        target = _ask_target()
+        mode = "text"
+        if target["type"] != "http":
+            choice = _choose(
+                "What should be tested?",
+                [
+                    "a chatbot: attack questions, leaks, needless refusals",
+                    "an agent that calls tools: hidden orders, data sent away, forbidden actions",
+                ],
+                default=2 if agents else 1,
+            )
+            mode = "agent" if choice == 2 else "text"
+        repeats = typer.prompt("How many times to ask each question", default=3, type=int)
+        strict = typer.confirm(
+            "Fail the check if personal or secret data leaks even once?", default=True
+        )
+        rate = typer.prompt(
+            "Fail if more than this share of attacks succeeds, in %", default=30, type=int
+        )
+        raw: dict[str, object] = {
+            "target": target,
+            "mode": mode,
+            "repeats": repeats,
+            "gate": {
+                "max_attack_rate": rate / 100,
+                "zero_tolerance": ["LLM02"] if strict else [],
+            },
+            "exports": {"results_json": "runs/results.json", "junit_xml": "runs/junit.xml"},
+        }
+        try:
+            project = ProjectConfig.model_validate(raw)
+        except ValidationError as exc:
+            for problem in exc.errors():
+                typer.echo(f"[FAIL] {'.'.join(map(str, problem['loc']))}: {problem['msg']}")
+            typer.echo("Let's try again.\n")
+            continue
+        header = (
+            "# Vespera project file, written by `vespera init`. `vespera test` reads it.\n"
+            "# Secrets never go here: only the NAME of the environment variable with a key.\n"
+            "# All settings: https://github.com/yaniquee26/vespera/blob/main/docs/connect-your-bot.md\n\n"
+        )
+        body = yaml.safe_dump(raw, sort_keys=False, allow_unicode=True)
+        return header + body, project.target.api_key_env, project.mode == "agent"
 
 
 def _config_text(agents: bool) -> str:
@@ -715,6 +949,14 @@ def _config_text(agents: bool) -> str:
 
 @app.command("test")
 def test_command(
+    target_spec: Annotated[
+        str | None,
+        typer.Argument(
+            metavar="TARGET",
+            help=f"What to test, in one word (default: vespera.yaml). Examples: {TARGET_EXAMPLES}.",
+            show_default=False,
+        ),
+    ] = None,
     config: ConfigOption = None,
     no_config: NoConfigOption = False,
     mode: Annotated[
@@ -747,10 +989,13 @@ def test_command(
     json_path: JsonOption = None,
     junit_path: JunitOption = None,
     reveal: RevealOption = False,
+    open_report: OpenOption = False,
 ) -> None:
-    """Run, check and report in one go, using vespera.yaml. Can fail the build (for CI).
+    """Run, check and report in one go. Can fail the build (for CI).
 
-    Settings come from the flags first, then from vespera.yaml, then from the defaults.
+    Settings come from TARGET and the flags first, then vespera.yaml, then the defaults.
+
+    Examples: `vespera test`, `vespera test openai:gpt-4o-mini --open`.
     """
     project = _project(config, no_config)
     if project is not None:
@@ -759,7 +1004,7 @@ def test_command(
     if chosen_mode not in ("text", "agent"):
         typer.echo("[FAIL] --mode must be text or agent")
         raise typer.Exit(code=1)
-    target = _resolve_target(project, model, provider_kind, base_url, api_key_env)
+    target = _resolve_target(project, model, provider_kind, base_url, api_key_env, target_spec)
     if chosen_mode == "agent" and target.type == "http":
         typer.echo("[FAIL] agent mode needs a model that can call tools (openai or ollama)")
         raise typer.Exit(code=1)
@@ -786,7 +1031,7 @@ def test_command(
             scenario_file, prompt_file, times, first_n, db, None,
         )
     check(run_id, db=db, system_prompt=prompt_file, mask_output=not reveal)
-    report(run_id, db=db, out=out or (project.report if project else None))
+    report(run_id, db=db, out=out or (project.report if project else None), open_report=open_report)
     policy = _policy(max_attack_rate, zero_tolerance, min_exposure, project)
     json_out, junit_out = _export_paths(project, json_path, junit_path)
     _finish(db, run_id, policy if _has_rules(policy) else None, json_out, junit_out, reveal)

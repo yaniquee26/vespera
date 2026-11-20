@@ -91,6 +91,20 @@ class Snapshot(BaseModel):
     max_steps: int | None = None  # agent runs only: how many model turns one task may take
 
 
+class RunInfo(BaseModel):
+    """One line of the run list: enough to recognise a run and pick it for gate or compare."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    run_id: int
+    started_at: str
+    status: str  # running | finished
+    snapshot: Snapshot
+    cases: int
+    attempts: int
+    checked: bool
+
+
 class Attempt(BaseModel):
     """One question asked to the model once, and what came back."""
 

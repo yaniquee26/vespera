@@ -50,6 +50,48 @@ class TargetConfig(BaseModel):
         return self
 
 
+# Short names for common services: prefix -> (API address, environment variable with the key).
+# A key is None for a local server, which needs none.
+SERVICES: dict[str, tuple[str, str | None]] = {
+    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY"),
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    "lmstudio": ("http://localhost:1234/v1", None),
+}
+
+TARGET_EXAMPLES = (
+    "qwen2.5:7b (local Ollama), ollama:llama3.1:8b, openai:gpt-4o-mini, "
+    "openrouter:meta-llama/llama-3.1-8b-instruct, lmstudio:MODEL, mock"
+)
+
+
+def parse_target(spec: str) -> TargetConfig:
+    """A target written as one string, for example 'openai:gpt-4o-mini' or 'qwen2.5:7b'.
+
+    A known prefix picks the service; anything else is a local Ollama model name (Ollama names
+    contain a colon themselves, like 'qwen2.5:7b'). A bot behind plain HTTP needs more settings
+    than fit in one string, so it is described in vespera.yaml instead.
+    """
+    text = spec.strip()
+    if text == "mock":
+        return TargetConfig(type="mock")
+    if text.startswith(("http://", "https://")):
+        raise ConfigError(
+            "a web address needs more settings (where the answer is in the reply): "
+            "describe the bot in vespera.yaml, `vespera init` asks for them"
+        )
+    prefix, _, rest = text.partition(":")
+    if prefix == "ollama":
+        text, prefix = rest, ""
+    elif prefix in SERVICES:
+        if not rest:
+            raise ConfigError(f"give a model after '{prefix}:', for example {prefix}:MODEL")
+        base_url, key_env = SERVICES[prefix]
+        return TargetConfig(type="openai", model=rest, base_url=base_url, api_key_env=key_env)
+    if not text:
+        raise ConfigError(f"empty target; examples: {TARGET_EXAMPLES}")
+    return TargetConfig(type="ollama", model=text)
+
+
 class GateConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
