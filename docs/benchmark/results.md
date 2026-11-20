@@ -74,6 +74,11 @@ but they need their own planned run before being claimed.
 
 Neither model can be called safer overall: they fail in different places.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/compare-dark.png">
+  <img alt="Vespera comparison page: qwen2.5:7b against llama3.1:8b by category, each difference marked conclusive or not conclusive" src="../images/compare-light.png" width="760">
+</picture>
+
 ## What this does and does not show
 
 - Each category has **one task per language**. A conclusive gap means "this task, written in this
