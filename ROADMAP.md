@@ -23,7 +23,7 @@ The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
       its numbers and language links in line with the README.
 - [x] 0.5 Clean repository root: the original spec moved to `docs/history/`, example scenarios
       and prompts moved to `examples/` and checked against the copies shipped in the package.
-- [ ] 0.6 CI matrix (Ubuntu and Windows, Python 3.12 and 3.13), coverage threshold, JUnit artefact.
+- [x] 0.6 CI matrix (Ubuntu and Windows, Python 3.12 and 3.13), coverage threshold, JUnit artefact.
 
 ## Phase 1. Moldovan edition
 
