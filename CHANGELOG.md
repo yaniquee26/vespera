@@ -6,6 +6,9 @@
 - Repository layout: example scenarios and system prompts live in `examples/` (a test keeps them
   identical to the copies shipped in the package); the original design spec is in `docs/history/`.
 - Roadmap for the releases after 1.0.0 (`ROADMAP.md`).
+- README in Romanian and Russian (`README.ro.md`, `README.ru.md`), a short summary at the top of
+  the English README and a table of the testing practice behind the tool. A test keeps the
+  benchmark numbers and the "conclusive" marks identical in all three languages.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

@@ -6,8 +6,15 @@
 ![python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+**English** · [Română](README.ro.md) · [Русский](README.ru.md)
+
 **A local test bench that tries to break LLM chatbots and tool-using agents in English, Russian
 and Romanian, and says honestly how sure it is.**
+
+> **In short:** Vespera attacks a chatbot or an AI agent, checks every reply with fixed rules and
+> reports how often the bot broke, with a 95% confidence interval. In a planned benchmark the same
+> agent sent a customer's phone and ID number by SMS in 10 of 10 runs in Russian, against 1–2 of 10
+> in English.
 
 It sends attacks (prompt injection, orders hidden in tool output, requests to leak secrets or to
 act without permission), judges every reply with deterministic rules, and reports each rate with a
@@ -227,6 +234,23 @@ $env:OPENAI_API_KEY = "sk-..."
 vespera test openai:gpt-4o-mini --repeats 3
 ```
 
+## Testing practice behind it
+
+Vespera applies ordinary QA practice to LLM bots, and the same practice to its own code.
+
+| Practice | How Vespera does it |
+|---|---|
+| Risk-based strategy | every risk is mapped to a test technique and an oracle ([test strategy](docs/test-strategy.md)) |
+| Oracles with known errors | deterministic rules; the false alarms and misses of each check are written down |
+| Test design | the same intent in three languages; harmless control cases next to attacks catch needless refusals |
+| Statistics, not single runs | repeats, Wilson 95% intervals, a strict "conclusive" rule, unstable cases reported |
+| Experiment planned in advance | hypotheses and the decision rule written before the benchmark ([plan](docs/benchmark/plan.md)) |
+| Exit criteria | a CI gate with three outcomes: passed 0, failed 2, inconclusive 3 |
+| Evidence and traceability | every finding links to the raw reply or the tool-call journal; every run stores a snapshot |
+| Test data | synthetic secrets, canary tokens, invented Moldovan phone numbers (+373) and ID numbers (IDNP) |
+| Reporting | one HTML report, JUnit XML for CI dashboards, `results.json` with masking |
+| Testing the tool itself | 363 tests at unit, contract, integration, provider and CLI level, no network, about 99% line coverage |
+
 ## Known limitations
 
 - Checks are rules, not AI judges. They can miss a leak phrased in an unexpected way or raise a
@@ -248,9 +272,9 @@ mypy src
 pytest
 ```
 
-The test suite never calls a network or a real model: it uses a mock provider and invented data,
-and every test runs in its own empty folder. CI runs ruff, mypy (strict about untyped functions)
-and pytest with coverage on every push.
+The test suite (363 tests) never calls a network or a real model: it uses a mock provider and
+invented data, and every test runs in its own empty folder. CI runs ruff, mypy (strict about
+untyped functions) and pytest with coverage on every push.
 
 Built with AI assistance (Claude). Design decisions, test strategy and the review of every result
 are the author's.

@@ -16,8 +16,8 @@ The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
 
 ## Phase 0. Documentation and repository
 
-- [ ] 0.2 README: a short summary in English, Romanian and Russian, a table of the testing
-      techniques used, short `README.ro.md` and `README.ru.md`, one set of numbers everywhere.
+- [x] 0.2 README: a short summary, a table of the testing practice behind the tool, short
+      `README.ro.md` and `README.ru.md`; a test keeps the benchmark numbers identical in all three.
 - [ ] 0.3 A 30–60 second demo recording on the mock target: `init` → `test` → report → gate.
 - [ ] 0.4 Landing page: version 1.0, three-language header.
 - [x] 0.5 Clean repository root: the original spec moved to `docs/history/`, example scenarios
