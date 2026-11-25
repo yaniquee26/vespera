@@ -2,15 +2,21 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vespera.bundled import BUNDLED_FILES, read_bundled
+from vespera.bundled import AGENT_FILES, BUNDLED_FILES, read_bundled
 from vespera.cli import app
 
 REPO = Path(__file__).resolve().parents[1]
+EXAMPLES = REPO / "examples"
 
 
-def test_bundled_examples_match_the_files_in_the_repo_root() -> None:
-    for name in BUNDLED_FILES:
-        assert read_bundled(name) == (REPO / name).read_text(encoding="utf-8"), name
+def test_bundled_examples_match_the_files_in_examples() -> None:
+    for name in (*BUNDLED_FILES, *AGENT_FILES):
+        assert read_bundled(name) == (EXAMPLES / name).read_text(encoding="utf-8"), name
+
+
+def test_the_repo_root_holds_no_stray_example_files() -> None:
+    for name in (*BUNDLED_FILES, *AGENT_FILES):
+        assert not (REPO / name).exists(), name
 
 
 def test_unknown_bundled_file_is_refused() -> None:
@@ -54,9 +60,9 @@ def mock_test_args(tmp_path: Path, *extra: str) -> list[str]:
         "--out",
         str(tmp_path / "r.html"),
         "--scenarios",
-        str(REPO / "scenarios_v1.yaml"),
+        str(EXAMPLES / "scenarios_v1.yaml"),
         "--system-prompt",
-        str(REPO / "system_prompt.txt"),
+        str(EXAMPLES / "system_prompt.txt"),
         *extra,
     ]
 

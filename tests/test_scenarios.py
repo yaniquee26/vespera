@@ -7,7 +7,7 @@ from vespera.cli import app
 from vespera.contracts import Category, Language
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
 
-REAL_FILE = Path(__file__).resolve().parents[1] / "scenarios_v1.yaml"
+REAL_FILE = Path(__file__).resolve().parents[1] / "examples" / "scenarios_v1.yaml"
 
 GOOD = """
 scenarios:

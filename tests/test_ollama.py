@@ -169,13 +169,13 @@ def test_openai_key_is_sent_as_bearer_header_but_never_stored() -> None:
 
 def test_run_with_openai_needs_a_key_unless_local(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    repo = Path(__file__).resolve().parents[1]
+    examples = Path(__file__).resolve().parents[1] / "examples"
     result = CliRunner().invoke(
         app,
         [
             "run", "--provider", "openai", "--limit", "1", "--db", str(tmp_path / "x.db"),
-            "--scenarios", str(repo / "scenarios_v1.yaml"),
-            "--system-prompt", str(repo / "system_prompt.txt"),
+            "--scenarios", str(examples / "scenarios_v1.yaml"),
+            "--system-prompt", str(examples / "system_prompt.txt"),
         ],
     )
     assert result.exit_code == 1

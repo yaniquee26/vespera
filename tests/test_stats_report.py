@@ -33,7 +33,8 @@ from vespera.stats import (
 from vespera.storage import Storage
 
 REPO = Path(__file__).resolve().parents[1]
-SYSTEM = (REPO / "system_prompt.txt").read_text(encoding="utf-8")
+EXAMPLES = REPO / "examples"
+SYSTEM = (EXAMPLES / "system_prompt.txt").read_text(encoding="utf-8")
 
 # ---------------------------------------------------------------- wilson
 
@@ -234,7 +235,7 @@ def realistic_script() -> dict[tuple[str, int], str]:
 
 @pytest.fixture
 def stored_run(tmp_path: Path):  # type: ignore[no-untyped-def]
-    cases = expand_cases(load_scenarios(REPO / "scenarios_v1.yaml"))
+    cases = expand_cases(load_scenarios(EXAMPLES / "scenarios_v1.yaml"))
     storage = Storage(tmp_path / "r.db")
     snapshot = build_snapshot(
         model="scripted-model",
@@ -332,12 +333,12 @@ def test_whole_pipeline_from_the_command_line(tmp_path: Path) -> None:
         "--db",
         str(db),
         "--scenarios",
-        str(REPO / "scenarios_v1.yaml"),
+        str(EXAMPLES / "scenarios_v1.yaml"),
         "--system-prompt",
-        str(REPO / "system_prompt.txt"),
+        str(EXAMPLES / "system_prompt.txt"),
     ]
     assert runner.invoke(app, run_args).exit_code == 0
-    check_args = ["check", "--db", str(db), "--system-prompt", str(REPO / "system_prompt.txt")]
+    check_args = ["check", "--db", str(db), "--system-prompt", str(EXAMPLES / "system_prompt.txt")]
     assert runner.invoke(app, check_args).exit_code == 0
     target = tmp_path / "out" / "page.html"
     result_ = runner.invoke(app, ["report", "--db", str(db), "--out", str(target)])
@@ -361,13 +362,13 @@ def test_report_default_location_is_next_to_the_database(tmp_path: Path) -> None
             "--db",
             str(db),
             "--scenarios",
-            str(REPO / "scenarios_v1.yaml"),
+            str(EXAMPLES / "scenarios_v1.yaml"),
             "--system-prompt",
-            str(REPO / "system_prompt.txt"),
+            str(EXAMPLES / "system_prompt.txt"),
         ],
     )
     runner.invoke(
-        app, ["check", "--db", str(db), "--system-prompt", str(REPO / "system_prompt.txt")]
+        app, ["check", "--db", str(db), "--system-prompt", str(EXAMPLES / "system_prompt.txt")]
     )
     assert runner.invoke(app, ["report", "--db", str(db)]).exit_code == 0
     assert (tmp_path / "report-run-1.html").exists()
@@ -388,9 +389,9 @@ def test_report_command_fails_clearly_without_check_or_runs(tmp_path: Path) -> N
             "--db",
             str(db),
             "--scenarios",
-            str(REPO / "scenarios_v1.yaml"),
+            str(EXAMPLES / "scenarios_v1.yaml"),
             "--system-prompt",
-            str(REPO / "system_prompt.txt"),
+            str(EXAMPLES / "system_prompt.txt"),
         ],
     )
     unchecked = runner.invoke(app, ["report", "--db", str(db)])

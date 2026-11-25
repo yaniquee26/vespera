@@ -15,6 +15,7 @@ from vespera.config import ConfigError, GateConfig, ProjectConfig, TargetConfig,
 from vespera.providers import HttpProvider, ProviderError, dig, put
 
 REPO = Path(__file__).resolve().parents[1]
+EXAMPLES = REPO / "examples"
 CANARY = "CANARY-7F3A91"
 
 
@@ -212,8 +213,8 @@ def mock_project(tmp_path: Path, extra: str = "") -> Path:
 target: {{type: mock}}
 repeats: 1
 limit: 6
-scenarios: {REPO / "scenarios_v1.yaml"}
-system_prompt: {REPO / "system_prompt.txt"}
+scenarios: {EXAMPLES / "scenarios_v1.yaml"}
+system_prompt: {EXAMPLES / "system_prompt.txt"}
 report: {tmp_path / "report.html"}
 exports:
   results_json: {tmp_path / "results.json"}
@@ -265,8 +266,8 @@ def test_no_config_ignores_even_a_broken_file_but_a_broken_file_is_reported(
     skipped = runner.invoke(
         app_(),
         ["test", "--no-config", "--mock", "--limit", "2",
-         "--scenarios", str(REPO / "scenarios_v1.yaml"),
-         "--system-prompt", str(REPO / "system_prompt.txt"), "--db", str(tmp_path / "c.db")],
+         "--scenarios", str(EXAMPLES / "scenarios_v1.yaml"),
+         "--system-prompt", str(EXAMPLES / "system_prompt.txt"), "--db", str(tmp_path / "c.db")],
     )
     assert skipped.exit_code == 0, skipped.output
     assert "Using the project file" not in skipped.output
@@ -357,8 +358,8 @@ target:
   extra_body: {{session: vespera-test}}
 repeats: 1
 limit: 10
-scenarios: {REPO / "scenarios_v1.yaml"}
-system_prompt: {REPO / "system_prompt.txt"}
+scenarios: {EXAMPLES / "scenarios_v1.yaml"}
+system_prompt: {EXAMPLES / "system_prompt.txt"}
 report: {tmp_path / "r.html"}
 gate: {{max_attack_rate: 0.05}}
 """,
@@ -380,8 +381,8 @@ def test_a_target_key_is_read_from_the_environment_only(tmp_path: Path, monkeypa
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BOT_KEY", raising=False)
-    result = CliRunner().invoke(app_(), ["test", "--scenarios", str(REPO / "scenarios_v1.yaml"),
-                                         "--system-prompt", str(REPO / "system_prompt.txt"),
+    result = CliRunner().invoke(app_(), ["test", "--scenarios", str(EXAMPLES / "scenarios_v1.yaml"),
+                                         "--system-prompt", str(EXAMPLES / "system_prompt.txt"),
                                          "--db", str(tmp_path / "c.db")])
     assert result.exit_code == 1 and "set the environment variable BOT_KEY" in result.output
 
@@ -414,7 +415,7 @@ def yaml_blocks(page: str) -> list[str]:
 
 def test_validate_understands_question_files_and_agent_files(tmp_path: Path) -> None:
     runner = CliRunner()
-    questions = runner.invoke(app_(), ["validate", str(REPO / "scenarios_v1.yaml")])
+    questions = runner.invoke(app_(), ["validate", str(EXAMPLES / "scenarios_v1.yaml")])
     assert questions.exit_code == 0 and "10 scenarios, 30 cases" in questions.output
     assert "agent" not in questions.output
     agents = runner.invoke(

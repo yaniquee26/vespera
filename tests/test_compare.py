@@ -14,8 +14,9 @@ from vespera.snapshot import build_snapshot
 from vespera.storage import Storage
 
 REPO = Path(__file__).resolve().parents[1]
-SYSTEM = (REPO / "system_prompt.txt").read_text(encoding="utf-8")
-SCENARIOS = (REPO / "scenarios_v1.yaml").read_text(encoding="utf-8")
+EXAMPLES = REPO / "examples"
+SYSTEM = (EXAMPLES / "system_prompt.txt").read_text(encoding="utf-8")
+SCENARIOS = (EXAMPLES / "scenarios_v1.yaml").read_text(encoding="utf-8")
 
 
 def store_run(
@@ -27,7 +28,7 @@ def store_run(
     check: bool = True,
     temperature: float = 0.7,
 ) -> int:
-    cases = expand_cases(load_scenarios(REPO / "scenarios_v1.yaml"))
+    cases = expand_cases(load_scenarios(EXAMPLES / "scenarios_v1.yaml"))
     snapshot = build_snapshot(
         model=model,
         temperature=temperature,
@@ -128,13 +129,14 @@ def test_compare_command(tmp_path: Path) -> None:
         "--db",
         str(db),
         "--scenarios",
-        str(REPO / "scenarios_v1.yaml"),
+        str(EXAMPLES / "scenarios_v1.yaml"),
         "--system-prompt",
-        str(REPO / "system_prompt.txt"),
+        str(EXAMPLES / "system_prompt.txt"),
     ]
     for _ in range(2):
         assert runner.invoke(app, ["run", "--mock", "--repeats", "2", *base]).exit_code == 0
-        check_args = ["check", "--db", str(db), "--system-prompt", str(REPO / "system_prompt.txt")]
+        prompt = str(EXAMPLES / "system_prompt.txt")
+        check_args = ["check", "--db", str(db), "--system-prompt", prompt]
         assert runner.invoke(app, check_args).exit_code == 0
     out = tmp_path / "cmp.html"
     result = runner.invoke(app, ["compare", "1", "2", "--db", str(db), "--out", str(out)])

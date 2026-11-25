@@ -20,8 +20,8 @@ The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
       techniques used, short `README.ro.md` and `README.ru.md`, one set of numbers everywhere.
 - [ ] 0.3 A 30–60 second demo recording on the mock target: `init` → `test` → report → gate.
 - [ ] 0.4 Landing page: version 1.0, three-language header.
-- [ ] 0.5 Clean repository root: old SPEC and TASKS moved to `docs/history/`, example files moved
-      to `examples/`.
+- [x] 0.5 Clean repository root: the original spec moved to `docs/history/`, example scenarios
+      and prompts moved to `examples/` and checked against the copies shipped in the package.
 - [ ] 0.6 CI matrix (Ubuntu and Windows, Python 3.12 and 3.13), coverage threshold, JUnit artefact.
 
 ## Phase 1. Moldovan edition

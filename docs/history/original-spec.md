@@ -1,3 +1,7 @@
+> Original design specification (in Russian), written before version 0.1 and kept for history.
+> The current plan is [ROADMAP.md](../../ROADMAP.md); the current behaviour is described in the
+> [README](../../README.md) and the [test strategy](../test-strategy.md).
+
 # Vespera: спецификация (Core + Lingua), цель версии 1.0
 
 Vespera проверяет надёжность языковой модели на русском, румынском и английском. Каждый вывод привязан к доказательству. Запускается локально на Ollama, в облако ничего не уходит.

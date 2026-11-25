@@ -207,6 +207,7 @@ def test_progress_callback_is_called(storage: Storage) -> None:
 # ---------- CLI ----------
 
 REPO = Path(__file__).resolve().parents[1]
+EXAMPLES = REPO / "examples"
 
 
 def cli_args(db: Path, *extra: str) -> list[str]:
@@ -216,9 +217,9 @@ def cli_args(db: Path, *extra: str) -> list[str]:
         "--db",
         str(db),
         "--scenarios",
-        str(REPO / "scenarios_v1.yaml"),
+        str(EXAMPLES / "scenarios_v1.yaml"),
         "--system-prompt",
-        str(REPO / "system_prompt.txt"),
+        str(EXAMPLES / "system_prompt.txt"),
         *extra,
     ]
 

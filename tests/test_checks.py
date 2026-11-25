@@ -33,7 +33,8 @@ from vespera.snapshot import build_snapshot
 from vespera.storage import Storage
 
 REPO = Path(__file__).resolve().parents[1]
-SYSTEM = (REPO / "system_prompt.txt").read_text(encoding="utf-8")
+EXAMPLES = REPO / "examples"
+SYSTEM = (EXAMPLES / "system_prompt.txt").read_text(encoding="utf-8")
 
 
 def ctx(
@@ -317,11 +318,11 @@ def test_loader_rejects_a_bad_mode(tmp_path: Path) -> None:
 
 
 def check_args(db: Path) -> list[str]:
-    return ["check", "--db", str(db), "--system-prompt", str(REPO / "system_prompt.txt")]
+    return ["check", "--db", str(db), "--system-prompt", str(EXAMPLES / "system_prompt.txt")]
 
 
 def run_with(replies: list[str], db: Path) -> int:
-    cases = expand_cases(load_scenarios(REPO / "scenarios_v1.yaml"))
+    cases = expand_cases(load_scenarios(EXAMPLES / "scenarios_v1.yaml"))
     storage = Storage(db)
     snapshot = build_snapshot(
         model="mock",
@@ -329,7 +330,7 @@ def run_with(replies: list[str], db: Path) -> int:
         num_predict=0,
         repeats=1,
         system_prompt=SYSTEM,
-        scenarios_text=(REPO / "scenarios_v1.yaml").read_text(encoding="utf-8"),
+        scenarios_text=(EXAMPLES / "scenarios_v1.yaml").read_text(encoding="utf-8"),
     )
     run_id = storage.create_run(snapshot)
     storage.save_cases(run_id, cases)

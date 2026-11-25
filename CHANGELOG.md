@@ -3,6 +3,9 @@
 ## Unreleased
 - `vespera init`: empty lines between the questions, so the setup reads more easily.
 - README and benchmark results show screenshots of the report and the comparison (light and dark).
+- Repository layout: example scenarios and system prompts live in `examples/` (a test keeps them
+  identical to the copies shipped in the package); the original design spec is in `docs/history/`.
+- Roadmap for the releases after 1.0.0 (`ROADMAP.md`).
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable
