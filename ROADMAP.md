@@ -1,74 +1,84 @@
 # Roadmap
 
-Where Vespera goes after 1.0.0. Each item is small enough to finish and test in one sitting.
-The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
+Where Vespera goes after 1.0.0. The order is **foundation → Studio → features in slices**: a
+shared service layer with registries for targets, scenario packs and checks comes first, the
+local web app (Vespera Studio) is built on top of it, and every later feature then ships as one
+slice: engine, Studio page and tests together. The reasons are recorded in
+[ADR-0005](docs/adr/0005-foundation-before-studio-and-feature-slices.md).
 
-## Done (up to 1.0.0)
+Each item is small enough to finish and test in one sitting. A box is ticked only when `ruff`,
+`mypy` and `pytest` are green and CI passes.
 
-- Core: contracts, providers, runner, rule checks, Wilson statistics, SQLite, HTML report,
-  comparison of two runs.
-- Any target: Ollama, OpenAI-style APIs, plain HTTP endpoints.
-- Agent mode: simulated tools, full journal, hidden orders in tool output, exposure, language drift.
-- OWASP LLM Top 10 2026 labels and severities, three-outcome CI gate, `results.json` and JUnit
-  with masking, `vespera.yaml`, `vespera init` / `vespera test`, one-word targets.
-- Benchmark R1 (qwen2.5:7b and llama3.1:8b, agent mode, 10 repeats, hypotheses written first),
-  reports on GitHub Pages, test strategy.
+## Done
 
-## Phase 0. Documentation and repository
+- **1.0.0:** core (contracts, providers, runner, rule checks, Wilson statistics, SQLite, HTML
+  report, comparison), any target (Ollama, OpenAI-style APIs, HTTP endpoints), agent mode
+  (simulated tools, journal, hidden orders in tool output, exposure), OWASP LLM Top 10 2026
+  labels, three-outcome CI gate, `results.json` and JUnit with masking, `vespera.yaml`,
+  `vespera init` / `vespera test`, benchmark R1 with reports on GitHub Pages, test strategy.
+- **After 1.0.0:** README and landing page in English, Romanian and Russian with a test that keeps
+  their numbers identical; clean repository root (`examples/`, `docs/history/`); CI on Ubuntu and
+  Windows with Python 3.12 and 3.13, a coverage floor and JUnit artefacts; Moldovan personal data
+  in the checks (local phone formats, `+373` in any grouping, IBAN MD with ISO 13616 check digits)
+  and export masking that uses the same patterns.
 
-- [x] 0.2 README: a short summary, a table of the testing practice behind the tool, short
-      `README.ro.md` and `README.ru.md`; a test keeps the benchmark numbers identical in all three.
-- [ ] 0.3 A 30–60 second demo recording on the mock target: `init` → `test` → report → gate.
-- [x] 0.4 Landing page in English, Romanian and Russian with a shared stylesheet; a test keeps
-      its numbers and language links in line with the README.
-- [x] 0.5 Clean repository root: the original spec moved to `docs/history/`, example scenarios
-      and prompts moved to `examples/` and checked against the copies shipped in the package.
-- [x] 0.6 CI matrix (Ubuntu and Windows, Python 3.12 and 3.13), coverage threshold, JUnit artefact.
+## Foundation
 
-## Phase 1. Moldovan edition
+- [ ] S1 Service layer (`vespera/services/`): the logic now inside `cli.py` moves to functions
+      with typed errors, so the command line and Studio call the same code. Registries for
+      targets, scenario packs and checks, each with a plain-language description. CLI output
+      stays byte for byte the same.
+- [ ] S2 Runs in the service layer; `Storage` as a context manager with a concurrent mode
+      (WAL, busy timeout); a workspace folder (`~/Vespera`) so Studio works from any directory.
 
-- [x] 1.1 Moldovan personal data in the checks: IBAN MD with its ISO 13616 check digits, local
-      phone formats (`069 123 456`, `(069) 123-456`) and `+373` numbers in any grouping; export
-      masking uses the same patterns.
-- [ ] 1.2 Bank assistant scenarios for an invented bank in EN, RO and RU: transfer without
-      confirmation, another customer's balance, ID number sent by SMS, blocking someone else's card.
-      Invented IDNPs get a control digit (7-3-1 rule), and the evidence says whether a leaked
-      13-digit number has one. The rule only labels evidence: no official source for the IDNP
-      was found, so it never clears a number.
-- [ ] 1.3 How people really write in Moldova: Russian in Latin letters, Romanian without
+## Vespera Studio (local web app, `vespera ui`)
+
+- [ ] S3 App skeleton: optional `vespera[ui]` extra, FastAPI + Jinja2 + htmx, design system with
+      light and dark themes, navigation, security middleware ([ADR-0004](docs/adr/0004-studio-security-model.md)),
+      Settings page with environment checks.
+- [ ] S4 Targets and Playground: saved connections to bots and agents, **Test connection** sends
+      one message and shows the real request (key masked), the reply and the latency.
+- [ ] S5 Runs and Run detail: categories with OWASP labels and interval bars, the language gap
+      (EN / RO / RU), findings with evidence and agent journals, Moldovan personal data
+      highlighted, snapshot, downloads.
+- [ ] S6 Library (scenario packs, EN / RO / RU side by side), Checks catalog (how each rule
+      decides and where it is wrong), How it works, Gate panel, Compare.
+- [ ] S7 New run wizard and background runs: live progress, cancel and resume, automatic checks.
+- [ ] S8 Browser tests with Playwright (Page Objects) in a separate CI job; screenshots for the
+      docs are taken by the same tests.
+- [ ] S9 README and landing page about Studio, `SECURITY.md`, CHANGELOG, release 1.1.0.
+
+## Features, one slice at a time (engine + Studio + tests)
+
+- [ ] F1 Bank assistant pack for an invented bank in EN, RO and RU (transfer without
+      confirmation, another customer's balance, ID number sent by SMS, someone else's card,
+      order hidden in a statement). Invented IDNPs carry a control digit (7-3-1 rule), and the
+      evidence says whether a leaked 13-digit number has one; the rule only labels evidence and
+      never clears a number, because no official specification for the IDNP was found. A data
+      protection note (Moldovan Law 195/2024) for personal data categories, as information only.
+- [ ] F2 How people really write in Moldova: Russian in Latin letters, Romanian without
       diacritics; ş/ș and ţ/ț treated as the same letter in the checks.
-- [ ] 1.3b More scenarios (3–5 wordings per category and language) and rates per scenario, so a
-      language gap is conclusive only when it holds across different scenarios.
-- [ ] 1.4 Data protection note in the report for personal data categories (Moldovan Law 195/2024,
-      aligned with the GDPR), marked as information, not legal advice.
-- [ ] 1.5 Native-speaker review of the Romanian and Russian scenarios.
-- [ ] 1.6 Benchmark R2 "bank assistant": plan first, qwen2.5:7b and llama3.1:8b, results page.
+- [ ] F3 Three to five wordings per category and language, and rates per scenario, so a language
+      gap is conclusive only when it holds across different scenarios. Then benchmark R2 with the
+      plan written first.
+- [ ] F4 Regression baseline: "worse, better or no conclusive change" against a saved run, in
+      the CLI (`--baseline`) and in Studio.
+- [ ] F5 Review mode: a person marks verdicts as right or wrong in Studio, and Vespera reports the
+      precision and recall of its own checks with intervals.
+- [ ] F6 Poisoned tool descriptions (MCP-style tool poisoning).
+- [ ] F7 A demo bank bot (FastAPI) with RAG attacks: poisoned document, another customer's
+      document, citations; API tests and browser tests against it.
+- [ ] F8 Multi-turn attacks.
 
-## Phase 2. Full QA practice on a demo target
+## Documentation site
 
-- [ ] 2.1 `demo/bank-bot/`: a small FastAPI assistant of an invented bank with FAQ lookup,
-      simulated tools and a chat page; a deterministic stub answers in CI.
-- [ ] 2.2 Test pyramid on the demo bot: API tests (pytest + httpx), UI tests (Playwright for
-      Python, Page Object), Vespera on top as the AI-safety layer.
-- [ ] 2.3 SQL cookbook: queries over the Vespera database that answer QA questions, each one tested.
-- [ ] 2.4 Docker image and `compose.yaml` (demo bot + Vespera).
-- [ ] 2.5 Team artefacts: test plan, test cases in CSV for TestRail/Xray, traceability matrix, bug
-      reports in GitHub Issues for the benchmark findings, issue template, project board.
-- [ ] 2.6 Code health: split `cli.py` into a package, one run-selection helper, `Storage` as a
-      context manager, explicit config errors, shared HTTP client, stronger exit-code-only tests,
-      `SECURITY.md`, `CONTRIBUTING.md`, Dependabot, pre-commit.
+- [ ] D1–D3 A documentation site (MkDocs Material): getting started, concepts, guides, Studio
+      tour with screenshots, reference for the CLI, `vespera.yaml` and `results.json`.
 
-## Phase 3. Beyond the basics (pick two or three)
+## Later
 
-- [ ] 3.1 Accuracy of the checks themselves: precision and recall on a hand-labelled sample.
-- [ ] 3.2 Regression baseline: `vespera test --baseline` says worse, better or no conclusive change.
-- [ ] 3.3 Poisoned tool descriptions (MCP-style tool poisoning).
-- [ ] 3.4 RAG attacks on the demo bot: poisoned document, another customer's document, citations.
-- [ ] 3.5 Multi-turn attacks.
-- [ ] 3.6 Mutation testing of the checks.
-- [ ] 3.7 Release: PyPI under a free name, GitHub Action, container image.
-
-## Phase 4. Writing about it
-
-- [ ] Article in English, Russian and Romanian about the language gap.
-- [ ] A one-page audit summary for readers outside engineering.
+- Native-speaker review of the Romanian and Russian scenarios.
+- SQL cookbook over the Vespera database, Docker image, test plan and traceability matrix,
+  mutation testing of the checks.
+- Release on PyPI under a free name, a GitHub Action, a container image, a Windows installer.
+- A 30–60 second demo recording; an article about the language gap.

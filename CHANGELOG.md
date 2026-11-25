@@ -20,6 +20,9 @@
   numbers are not taken for phones.
 - Export masking hides the same phones and IBANs in every grouping; before, a phone written with
   dashes (`+373-60-000-001`) reached `results.json` unmasked.
+- Architecture decision records (`docs/adr/`): rule-based oracles, Wilson intervals, the local web
+  app (Vespera Studio), its security model, and the order of work. The roadmap now goes
+  foundation → Studio → features as slices. A test checks every relative link in the docs.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

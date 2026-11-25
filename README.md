@@ -277,5 +277,8 @@ provider and invented data, and every test runs in its own empty folder. On ever
 ruff, mypy (strict about untyped functions) and pytest on Ubuntu and Windows with Python 3.12 and
 3.13, fails below 98% line coverage and keeps a JUnit report of each run.
 
+Design decisions are recorded as [architecture decision records](docs/adr/README.md); what comes
+next is in the [roadmap](ROADMAP.md).
+
 Built with AI assistance (Claude). Design decisions, test strategy and the review of every result
 are the author's.
