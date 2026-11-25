@@ -24,10 +24,11 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
 
 ## Foundation
 
-- [ ] S1 Service layer (`vespera/services/`): the logic now inside `cli.py` moves to functions
-      with typed errors, so the command line and Studio call the same code. Registries for
-      targets, scenario packs and checks, each with a plain-language description. CLI output
-      stays byte for byte the same.
+- [x] S1 Service layer (`vespera/services/`: project settings, API keys, results and gate) with
+      typed errors, so the command line and Studio call the same code. Registries
+      (`vespera/catalog.py`) for target types, scenario packs, attacks and checks, each with a
+      plain-language description; tests keep them complete. CLI output stays byte for byte the
+      same.
 - [ ] S2 Runs in the service layer; `Storage` as a context manager with a concurrent mode
       (WAL, busy timeout); a workspace folder (`~/Vespera`) so Studio works from any directory.
 

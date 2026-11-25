@@ -23,6 +23,10 @@
 - Architecture decision records (`docs/adr/`): rule-based oracles, Wilson intervals, the local web
   app (Vespera Studio), its security model, and the order of work. The roadmap now goes
   foundation → Studio → features as slices. A test checks every relative link in the docs.
+- Internal: a service layer (`vespera/services/`) for project settings, API keys and gate
+  results, with typed errors; the command line calls it and prints exactly what it printed
+  before. A catalog (`vespera/catalog.py`) describes in plain language every target type,
+  scenario pack, kind of attack and check, with each check's known false alarms and misses.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

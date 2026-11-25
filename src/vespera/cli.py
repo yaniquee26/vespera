@@ -1,5 +1,10 @@
-"""Command line interface: `vespera version`, `doctor`, `ask`."""
+"""The command line. Each command parses its flags, calls the services and prints the result.
 
+The logic lives in `vespera.services`; a `ServiceError` raised there is printed as `[FAIL] ...`
+here and ends the command with exit code 1.
+"""
+
+import functools
 import os
 import sys
 import webbrowser
@@ -7,7 +12,7 @@ from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 import yaml
@@ -20,24 +25,11 @@ from vespera.agent_scenarios import expand_agent_cases, load_agent_scenarios
 from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bundled
 from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
-from vespera.config import (
-    TARGET_EXAMPLES,
-    ConfigError,
-    ProjectConfig,
-    TargetConfig,
-    load_config,
-    parse_target,
-)
+from vespera.config import TARGET_EXAMPLES, ProjectConfig, TargetConfig, parse_target
 from vespera.contracts import Case, Category, RunInfo, Snapshot
 from vespera.doctor import all_required_ok, run_all
-from vespera.export import build_junit, build_results, mask, render_json, secrets_of
-from vespera.gate import (
-    GateConfigError,
-    GatePolicy,
-    GateResult,
-    GateStatus,
-    evaluate_gate,
-)
+from vespera.export import mask, secrets_of
+from vespera.gate import GatePolicy, GateResult, GateStatus
 from vespera.providers import (
     AgentProvider,
     BaseProvider,
@@ -52,11 +44,37 @@ from vespera.providers import (
 from vespera.report import ReportData, ReportError, build_report, render_html
 from vespera.runner import RunAborted, RunSummary, run_experiment
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
+from vespera.services.errors import ServiceError
+from vespera.services.project import build_policy as _policy
+from vespera.services.project import export_paths, has_rules, load_project, resolve_target
+from vespera.services.results import evaluate, junit_xml, results_json
+from vespera.services.targets import api_key_for, api_key_from_env
 from vespera.snapshot import build_snapshot, sha256_text
 from vespera.storage import Storage
 from vespera.summary import summarize
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
+
+
+def _fail(exc: ServiceError) -> NoReturn:
+    """Print a service error the way every command reports a problem, and stop with code 1."""
+    typer.echo(f"[FAIL] {exc}")
+    if exc.tip:
+        typer.echo(exc.tip)
+    raise typer.Exit(code=1) from exc
+
+
+def _reports_service_errors[**P, R](command: Callable[P, R]) -> Callable[P, R]:
+    """Turn a ServiceError raised anywhere inside a command into a [FAIL] line and exit code 1."""
+
+    @functools.wraps(command)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return command(*args, **kwargs)
+        except ServiceError as exc:
+            _fail(exc)
+
+    return wrapper
 
 
 MaxRateOption = Annotated[
@@ -104,51 +122,6 @@ OpenOption = Annotated[
 ]
 
 
-def _policy(
-    max_rate: float | None,
-    zero_tolerance: str | None,
-    min_exposure: float | None,
-    project: ProjectConfig | None = None,
-) -> GatePolicy:
-    """Flags win over the project file; the file wins over the built-in defaults."""
-    rules = project.gate if project else None
-    if zero_tolerance is not None:
-        selectors = tuple(part.strip() for part in zero_tolerance.split(",") if part.strip())
-    else:
-        selectors = tuple(rules.zero_tolerance) if rules else ()
-    if max_rate is None and rules:
-        max_rate = rules.max_attack_rate
-    if min_exposure is None:
-        min_exposure = rules.min_exposure if rules else 0.5
-    return GatePolicy(
-        max_attack_rate=max_rate, zero_tolerance=selectors, min_exposure=min_exposure
-    )
-
-
-def _project(config: Path | None, no_config: bool) -> ProjectConfig | None:
-    """vespera.yaml from --config, or from the current folder if it is there."""
-    if no_config:
-        return None
-    path = config if config is not None else Path("vespera.yaml")
-    if config is None and not path.exists():
-        return None
-    try:
-        return load_config(path)
-    except ConfigError as exc:
-        typer.echo(f"[FAIL] {exc}")
-        raise typer.Exit(code=1) from exc
-
-
-def _key_from_env(name: str | None) -> str | None:
-    if name is None:
-        return None
-    key = os.environ.get(name)
-    if not key:
-        typer.echo(f"[FAIL] set the environment variable {name} with your API key")
-        raise typer.Exit(code=1)
-    return key
-
-
 def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
     """The text provider for a target. The API key comes from the environment, never from a file."""
     if mock or target.type == "mock":
@@ -161,7 +134,7 @@ def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
             request_field=target.request_field,
             extra_body=target.extra_body,
             system_field=target.system_field,
-            api_key=_key_from_env(target.api_key_env),
+            api_key=api_key_from_env(target.api_key_env),
             api_key_header=target.api_key_header,
             api_key_prefix=target.api_key_prefix,
             timeout=target.timeout,
@@ -172,7 +145,7 @@ def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
         return OpenAICompatibleProvider(
             model=target.model,
             base_url=address,
-            api_key=_api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
+            api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
         )
     return OllamaProvider(model=target.model, base_url=target.base_url or "http://localhost:11434")
 
@@ -186,60 +159,8 @@ def _agent_target_provider(target: TargetConfig, mock: bool = False) -> AgentPro
     return OpenAICompatibleAgentProvider(
         model=target.model,
         base_url=address,
-        api_key=_api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
+        api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
     )
-
-
-def _resolve_target(
-    project: ProjectConfig | None,
-    model: str | None,
-    provider_kind: str | None,
-    base_url: str | None,
-    api_key_env: str | None,
-    spec: str | None = None,
-) -> TargetConfig:
-    """The target from the command line, else vespera.yaml, else the default; flags on top."""
-    if spec is not None:
-        try:
-            target = parse_target(spec)
-        except ConfigError as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
-    else:
-        target = project.target if project else TargetConfig(type="ollama", model="gemma3:4b")
-    updates: dict[str, str] = {}
-    if provider_kind is not None:
-        if provider_kind not in ("ollama", "openai"):
-            typer.echo("[FAIL] --provider must be ollama or openai")
-            raise typer.Exit(code=1)
-        updates["type"] = provider_kind
-    for name, value in (("model", model), ("base_url", base_url), ("api_key_env", api_key_env)):
-        if value is not None:
-            updates[name] = value
-    if not updates:
-        return target
-    try:
-        return TargetConfig.model_validate({**target.model_dump(), **updates})
-    except ValidationError as exc:
-        problems = "; ".join(str(problem["msg"]) for problem in exc.errors())
-        typer.echo(f"[FAIL] the flags do not fit the target: {problems}")
-        raise typer.Exit(code=1) from exc
-
-
-def _export_paths(
-    project: ProjectConfig | None, json_path: Path | None, junit_path: Path | None
-) -> tuple[Path | None, Path | None]:
-    """Flags win over the `exports` section of the project file."""
-    if project is None:
-        return json_path, junit_path
-    return (
-        json_path or project.exports.results_json,
-        junit_path or project.exports.junit_xml,
-    )
-
-
-def _has_rules(policy: GatePolicy) -> bool:
-    return policy.max_attack_rate is not None or bool(policy.zero_tolerance)
 
 
 def _chosen_run(db: Path, run_id: int | None) -> int:
@@ -276,23 +197,13 @@ def _write_exports(
     junit_path: Path | None,
     reveal: bool,
 ) -> None:
-    cases = storage.get_cases(run_id)
-    hidden = secrets_of(cases)
     if json_path is not None:
-        payload = build_results(data, result, mask_values=not reveal, secrets=hidden)
+        text = results_json(storage, run_id, data, result, reveal=reveal)
         json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text(render_json(payload), encoding="utf-8")
+        json_path.write_text(text, encoding="utf-8")
         typer.echo(f"[OK] results written to {json_path}")
     if junit_path is not None:
-        xml = build_junit(
-            run_id,
-            storage.get_snapshot(run_id),
-            cases,
-            storage.get_attempts(run_id),
-            storage.get_check_results(run_id),
-            mask_values=not reveal,
-            secrets=hidden,
-        )
+        xml = junit_xml(storage, run_id, reveal=reveal)
         junit_path.parent.mkdir(parents=True, exist_ok=True)
         junit_path.write_text(xml, encoding="utf-8")
         typer.echo(f"[OK] JUnit XML written to {junit_path}")
@@ -308,15 +219,8 @@ def _finish(
 ) -> None:
     """Build the report data, apply the gate if there is a policy, write exports, set exit code."""
     storage = Storage(db)
-    result: GateResult | None = None
     try:
-        try:
-            data = build_report(storage, run_id)
-            if policy is not None:
-                result = evaluate_gate(data, policy)
-        except (ReportError, GateConfigError) as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
+        data, result = evaluate(storage, run_id, policy)
         _write_exports(storage, run_id, data, result, json_path, junit_path, reveal)
     finally:
         storage.close()
@@ -401,15 +305,6 @@ def _is_agent_file(path: Path) -> bool:
 DEFAULT_DB = Path("runs/vespera.db")
 
 
-def _api_key_for(address: str, api_key_env: str) -> str | None:
-    """The key from the environment. A local server needs none, any other server does."""
-    key = os.environ.get(api_key_env)
-    if not key and "localhost" not in address and "127.0.0.1" not in address:
-        typer.echo(f"[FAIL] set the environment variable {api_key_env} with your API key")
-        raise typer.Exit(code=1)
-    return key
-
-
 def _begin_run(
     storage: Storage, db: Path, snapshot: Snapshot, cases: list[Case], resume: int | None
 ) -> int:
@@ -484,6 +379,7 @@ def _run_and_save(
 
 
 @app.command()
+@_reports_service_errors
 def run(
     model: Annotated[str, typer.Option(help="Model name.")] = "gemma3:4b",
     provider_kind: Annotated[
@@ -949,6 +845,7 @@ def _config_text(agents: bool) -> str:
 
 
 @app.command("test")
+@_reports_service_errors
 def test_command(
     target_spec: Annotated[
         str | None,
@@ -998,14 +895,14 @@ def test_command(
 
     Examples: `vespera test`, `vespera test openai:gpt-4o-mini --open`.
     """
-    project = _project(config, no_config)
+    project = load_project(config, no_config)
     if project is not None:
         typer.echo(f"Using the project file {config or 'vespera.yaml'}")
     chosen_mode = mode or (project.mode if project else "text")
     if chosen_mode not in ("text", "agent"):
         typer.echo("[FAIL] --mode must be text or agent")
         raise typer.Exit(code=1)
-    target = _resolve_target(project, model, provider_kind, base_url, api_key_env, target_spec)
+    target = resolve_target(project, model, provider_kind, base_url, api_key_env, target_spec)
     if chosen_mode == "agent" and target.type == "http":
         typer.echo("[FAIL] agent mode needs a model that can call tools (openai or ollama)")
         raise typer.Exit(code=1)
@@ -1034,11 +931,12 @@ def test_command(
     check(run_id, db=db, system_prompt=prompt_file, mask_output=not reveal)
     report(run_id, db=db, out=out or (project.report if project else None), open_report=open_report)
     policy = _policy(max_attack_rate, zero_tolerance, min_exposure, project)
-    json_out, junit_out = _export_paths(project, json_path, junit_path)
-    _finish(db, run_id, policy if _has_rules(policy) else None, json_out, junit_out, reveal)
+    json_out, junit_out = export_paths(project, json_path, junit_path)
+    _finish(db, run_id, policy if has_rules(policy) else None, json_out, junit_out, reveal)
 
 
 @app.command("gate")
+@_reports_service_errors
 def gate_command(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
@@ -1055,19 +953,20 @@ def gate_command(
 
     Rules come from the flags, or from the `gate` section of vespera.yaml.
     """
-    project = _project(config, no_config)
+    project = load_project(config, no_config)
     policy = _policy(max_attack_rate, zero_tolerance, min_exposure, project)
-    if not _has_rules(policy):
+    if not has_rules(policy):
         typer.echo(
             "[FAIL] give at least one rule: --max-attack-rate, --zero-tolerance "
             "or a gate section in vespera.yaml"
         )
         raise typer.Exit(code=1)
-    json_out, junit_out = _export_paths(project, json_path, junit_path)
+    json_out, junit_out = export_paths(project, json_path, junit_path)
     _finish(db, _chosen_run(db, run_id), policy, json_out, junit_out, reveal)
 
 
 @app.command("export")
+@_reports_service_errors
 def export_command(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
@@ -1083,6 +982,7 @@ def export_command(
 
 
 @app.command("run-agent")
+@_reports_service_errors
 def run_agent(
     model: Annotated[str, typer.Option(help="A model that can call tools.")] = "qwen2.5:7b",
     base_url: Annotated[
