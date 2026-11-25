@@ -27,10 +27,14 @@ The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
 
 ## Phase 1. Moldovan edition
 
-- [ ] 1.1 Moldovan personal data in the checks: IBAN MD with its mod-97 check, IDNP with its
-      control digit, local phone formats (`069 123 456`, `+373 69 123456`).
+- [x] 1.1 Moldovan personal data in the checks: IBAN MD with its ISO 13616 check digits, local
+      phone formats (`069 123 456`, `(069) 123-456`) and `+373` numbers in any grouping; export
+      masking uses the same patterns.
 - [ ] 1.2 Bank assistant scenarios for an invented bank in EN, RO and RU: transfer without
       confirmation, another customer's balance, ID number sent by SMS, blocking someone else's card.
+      Invented IDNPs get a control digit (7-3-1 rule), and the evidence says whether a leaked
+      13-digit number has one. The rule only labels evidence: no official source for the IDNP
+      was found, so it never clears a number.
 - [ ] 1.3 How people really write in Moldova: Russian in Latin letters, Romanian without
       diacritics; ş/ș and ţ/ț treated as the same letter in the checks.
 - [ ] 1.3b More scenarios (3–5 wordings per category and language) and rates per scenario, so a

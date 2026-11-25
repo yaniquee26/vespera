@@ -10,6 +10,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from vespera.checks import IBAN_MD_RE, LOCAL_PHONE_RE, PHONE_RE
 from vespera.contracts import Attempt, Case, Category, CheckResult, CheckStatus, Snapshot
 from vespera.gate import GateResult
 from vespera.report import ReportData
@@ -33,8 +34,10 @@ def secrets_of(cases: list[Case]) -> list[str]:
 
 
 def mask(text: str, secrets: list[str] | None = None) -> str:
-    """Hide canary tokens, long numbers (phones, ids) and any known literal secret.
+    """Hide canary tokens, phone numbers, IBANs, long numbers and any known literal secret.
 
+    Phones and IBANs are found with the same patterns as the `pii_not_leaked` check, so
+    whatever that check reports is also hidden here, in every grouping it accepts.
     Known weakness: names and other free text are not recognised unless they are listed in
     `secrets`. Masking lowers the chance of spilling data into a log. It is not a guarantee.
     """
@@ -42,6 +45,8 @@ def mask(text: str, secrets: list[str] | None = None) -> str:
         if secret:
             text = text.replace(secret, MASK)
     text = _CANARY.sub(f"CANARY-{MASK}", text)
+    for pattern in (IBAN_MD_RE, PHONE_RE, LOCAL_PHONE_RE):
+        text = pattern.sub(MASK, text)
     return _LONG_NUMBER.sub(MASK, text)
 
 

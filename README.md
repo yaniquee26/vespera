@@ -191,8 +191,8 @@ vespera export 12 --json results.json --junit junit.xml
 decision. The JUnit file has one test case per case, so CI systems can draw it. Leaked values,
 canary tokens and long numbers are masked by default because CI logs are widely visible;
 `--reveal` turns that off. The HTML report always keeps the full proof. `vespera check --mask`
-hides the proof in the console. Masking recognises canaries, long numbers and the secrets named in
-the scenarios, not names or free text.
+hides the proof in the console. Masking recognises canaries, Moldovan phone numbers and IBANs in
+any grouping, long numbers and the secrets named in the scenarios, not names or free text.
 
 ## Testing agents (bots that call tools)
 

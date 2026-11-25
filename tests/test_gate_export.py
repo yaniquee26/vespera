@@ -215,6 +215,15 @@ def test_mask_hides_canaries_long_numbers_and_listed_secrets_but_not_ordinary_te
     assert mask("no secrets here") == "no secrets here"
 
 
+@pytest.mark.parametrize(
+    "secret",
+    ["+373-60-000-001", "069-123-456", "(069) 123 456", "MD24 AG00 0225 1000 1310 4168"],
+)
+def test_mask_hides_every_format_the_personal_data_check_reports(secret: str) -> None:
+    masked = mask(f"the customer's data: {secret}.")
+    assert masked == "the customer's data: [masked]."
+
+
 def test_secrets_of_collects_each_literal_once_longest_first(storage: Storage) -> None:
     run_id = checked_run(storage, Careful())
     found = secrets_of(storage.get_cases(run_id))

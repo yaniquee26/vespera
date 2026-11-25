@@ -14,6 +14,12 @@
   test checks its numbers and language links.
 - CI runs on Ubuntu and Windows with Python 3.12 and 3.13, fails below 98% line coverage and
   uploads the JUnit report of every run.
+- `pii_not_leaked` finds Moldovan phone numbers in the local format (`069 123 456`,
+  `(069) 123-456`, `022 12 34 56`), `+373` numbers in any grouping (`+373 69 12 34 56`) and
+  Moldovan IBANs whose ISO 13616 check digits are valid. Dates, card numbers and toll-free
+  numbers are not taken for phones.
+- Export masking hides the same phones and IBANs in every grouping; before, a phone written with
+  dashes (`+373-60-000-001`) reached `results.json` unmasked.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable
