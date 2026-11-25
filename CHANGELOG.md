@@ -9,6 +9,9 @@
 - README in Romanian and Russian (`README.ro.md`, `README.ru.md`), a short summary at the top of
   the English README and a table of the testing practice behind the tool. A test keeps the
   benchmark numbers and the "conclusive" marks identical in all three languages.
+- Landing page on GitHub Pages in English, Romanian and Russian (`docs/index.html`, `ro.html`,
+  `ru.html`, shared `style.css`), with a short "try it" block and the current release; the same
+  test checks its numbers and language links.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

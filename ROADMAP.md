@@ -19,7 +19,8 @@ The checkbox is ticked only when `ruff`, `mypy` and `pytest` are green.
 - [x] 0.2 README: a short summary, a table of the testing practice behind the tool, short
       `README.ro.md` and `README.ru.md`; a test keeps the benchmark numbers identical in all three.
 - [ ] 0.3 A 30–60 second demo recording on the mock target: `init` → `test` → report → gate.
-- [ ] 0.4 Landing page: version 1.0, three-language header.
+- [x] 0.4 Landing page in English, Romanian and Russian with a shared stylesheet; a test keeps
+      its numbers and language links in line with the README.
 - [x] 0.5 Clean repository root: the original spec moved to `docs/history/`, example scenarios
       and prompts moved to `examples/` and checked against the copies shipped in the package.
 - [ ] 0.6 CI matrix (Ubuntu and Windows, Python 3.12 and 3.13), coverage threshold, JUnit artefact.

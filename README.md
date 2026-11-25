@@ -249,7 +249,7 @@ Vespera applies ordinary QA practice to LLM bots, and the same practice to its o
 | Evidence and traceability | every finding links to the raw reply or the tool-call journal; every run stores a snapshot |
 | Test data | synthetic secrets, canary tokens, invented Moldovan phone numbers (+373) and ID numbers (IDNP) |
 | Reporting | one HTML report, JUnit XML for CI dashboards, `results.json` with masking |
-| Testing the tool itself | 363 tests at unit, contract, integration, provider and CLI level, no network, about 99% line coverage |
+| Testing the tool itself | more than 360 tests at unit, contract, integration, provider and CLI level, no network, about 99% line coverage |
 
 ## Known limitations
 
@@ -272,9 +272,9 @@ mypy src
 pytest
 ```
 
-The test suite (363 tests) never calls a network or a real model: it uses a mock provider and
-invented data, and every test runs in its own empty folder. CI runs ruff, mypy (strict about
-untyped functions) and pytest with coverage on every push.
+The test suite (more than 360 tests) never calls a network or a real model: it uses a mock
+provider and invented data, and every test runs in its own empty folder. CI runs ruff, mypy
+(strict about untyped functions) and pytest with coverage on every push.
 
 Built with AI assistance (Claude). Design decisions, test strategy and the review of every result
 are the author's.

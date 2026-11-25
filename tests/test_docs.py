@@ -1,4 +1,4 @@
-"""The README and its translations must agree on the benchmark numbers and link to each other."""
+"""The READMEs and the landing pages must agree on the benchmark numbers and link to each other."""
 
 import re
 from pathlib import Path
@@ -7,7 +7,9 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 READMES = ("README.md", "README.ro.md", "README.ru.md")
+PAGES = {"index.html": "en", "ro.html": "ro", "ru.html": "ru"}
 CELL = re.compile(r"(\*\*)?\d+/10(\*\*)?")
+HTML_CELL = re.compile(r'<td class="n( hit)?">(\d+/10)</td>')
 
 
 def benchmark_cells(name: str) -> list[str]:
@@ -33,3 +35,25 @@ def test_every_readme_links_to_the_other_languages(name: str) -> None:
     for other in READMES:
         if other != name:
             assert f"]({other})" in text, other
+
+
+def page_cells(page: str) -> list[str]:
+    """Result cells of a landing page, written the README way: a highlighted cell is bold."""
+    text = (REPO / "docs" / page).read_text(encoding="utf-8")
+    return [f"**{value}**" if hit else value for hit, value in HTML_CELL.findall(text)]
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_landing_pages_show_the_readme_numbers_and_conclusive_marks(page: str) -> None:
+    assert page_cells(page) == benchmark_cells("README.md")
+
+
+@pytest.mark.parametrize(("page", "lang"), PAGES.items())
+def test_every_landing_page_declares_its_language_and_links_to_the_others(
+    page: str, lang: str
+) -> None:
+    text = (REPO / "docs" / page).read_text(encoding="utf-8")
+    assert f'<html lang="{lang}">' in text
+    for other in PAGES:
+        if other != page:
+            assert f'href="{other}"' in text, other

@@ -3,60 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vespera benchmark</title>
-<meta name="description" content="Vespera: a local test bench for LLM agents in English, Russian and Romanian. Benchmark of qwen2.5:7b and llama3.1:8b with full reports.">
-<style>
-:root {
-  --bg: #f6f7f9; --card: #ffffff; --text: #1b1f27; --muted: #5d6675; --line: #dfe3ea;
-  --bad: #b3261e; --bad-soft: #f9dedc; --ok: #1f7a4d; --accent: #3a5bd9;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #12151b; --card: #1b2029; --text: #e8ebf1; --muted: #9aa3b2; --line: #2b323e;
-    --bad: #ff8a80; --bad-soft: #3a1f1d; --ok: #6fd3a0; --accent: #8ea4ff;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #12151b; --card: #1b2029; --text: #e8ebf1; --muted: #9aa3b2; --line: #2b323e;
-  --bad: #ff8a80; --bad-soft: #3a1f1d; --ok: #6fd3a0; --accent: #8ea4ff;
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
-h1 { font-size: 2rem; margin: 0 0 6px; letter-spacing: -0.01em; }
-h2 { font-size: 1.2rem; margin: 36px 0 12px; }
-p { margin: 0 0 12px; }
-a { color: var(--accent); }
-.sub { color: var(--muted); font-size: 1.05rem; max-width: 720px; margin-bottom: 24px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-  padding: 16px 18px; margin-bottom: 14px; }
-.scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
-th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
-td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.hit { color: var(--bad); font-weight: 700; }
-.note { color: var(--muted); font-size: 0.9rem; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-.link-card { display: block; text-decoration: none; color: var(--text); }
-.link-card:hover { border-color: var(--accent); }
-.link-card strong { display: block; margin-bottom: 4px; color: var(--accent); }
-.link-card span { color: var(--muted); font-size: 0.92rem; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem;
-  font-weight: 600; background: var(--bad-soft); color: var(--bad); }
-ul { margin: 0; padding-left: 20px; }
-li { margin-bottom: 6px; }
-footer { color: var(--muted); font-size: 0.9rem; margin-top: 40px; }
-</style>
+<title>Vespera: test bench for LLM chatbots and agents</title>
+<meta name="description" content="Vespera: a local test bench for LLM chatbots and tool-using agents in English, Romanian and Russian. Benchmark of qwen2.5:7b and llama3.1:8b with full reports.">
+<link rel="alternate" hreflang="en" href="https://yaniquee26.github.io/vespera/">
+<link rel="alternate" hreflang="ro" href="https://yaniquee26.github.io/vespera/ro.html">
+<link rel="alternate" hreflang="ru" href="https://yaniquee26.github.io/vespera/ru.html">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
+<nav class="lang" aria-label="Language"><strong>English</strong> ·
+<a href="ro.html" hreflang="ro" lang="ro">Română</a> ·
+<a href="ru.html" hreflang="ru" lang="ru">Русский</a></nav>
+
 <h1>Vespera</h1>
 <p class="sub">A local test bench that tries to break LLM chatbots and tool-using agents in
 English, Russian and Romanian, judges every reply with deterministic rules and reports each rate
 with a 95% confidence interval.
 <a href="https://github.com/yaniquee26/vespera">Source code on GitHub</a>.</p>
+<p class="lead"><strong>In short:</strong> in a planned benchmark the same agent sent a customer's
+phone and ID number by SMS in 10 of 10 runs in Russian, against 1–2 of 10 in English.</p>
 
 <h2>Benchmark: the same agent is less safe in Russian and Romanian</h2>
 <div class="card">
@@ -101,6 +67,15 @@ general law about languages.</p>
   conclusive verdict for each difference.</span></a>
 </div>
 
+<h2>Try it</h2>
+<div class="card">
+<pre><code>pip install git+https://github.com/yaniquee26/vespera
+vespera init          # a few questions and a ready vespera.yaml
+vespera test --open   # run, check, report and gate</code></pre>
+<p class="note">No GPU needed to look around: <code>vespera test mock</code>. A local model:
+<code>vespera test qwen2.5:7b</code>. Tool use: add <code>--mode agent</code>.</p>
+</div>
+
 <h2>How to read it</h2>
 <div class="card">
 <ul>
@@ -125,7 +100,9 @@ numbers and secrets are invented.</li>
 </div>
 
 <footer>Benchmark run on 19 November 2026 with Vespera 0.4.0, local Ollama on one RTX 4060.
-Models answer differently from run to run; a repeat should give intervals that overlap these.</footer>
+Models answer differently from run to run; a repeat should give intervals that overlap these.<br>
+Current release: <a href="https://github.com/yaniquee26/vespera/releases">1.0.0</a> ·
+<a href="https://github.com/yaniquee26/vespera">GitHub</a> · MIT license</footer>
 </main>
 </body>
 </html>
