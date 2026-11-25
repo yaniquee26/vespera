@@ -12,6 +12,8 @@
 - Landing page on GitHub Pages in English, Romanian and Russian (`docs/index.html`, `ro.html`,
   `ru.html`, shared `style.css`), with a short "try it" block and the current release; the same
   test checks its numbers and language links.
+- CI runs on Ubuntu and Windows with Python 3.12 and 3.13, fails below 98% line coverage and
+  uploads the JUnit report of every run.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

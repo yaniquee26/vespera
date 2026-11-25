@@ -273,8 +273,9 @@ pytest
 ```
 
 The test suite (more than 360 tests) never calls a network or a real model: it uses a mock
-provider and invented data, and every test runs in its own empty folder. CI runs ruff, mypy
-(strict about untyped functions) and pytest with coverage on every push.
+provider and invented data, and every test runs in its own empty folder. On every push CI runs
+ruff, mypy (strict about untyped functions) and pytest on Ubuntu and Windows with Python 3.12 and
+3.13, fails below 98% line coverage and keeps a JUnit report of each run.
 
 Built with AI assistance (Claude). Design decisions, test strategy and the review of every result
 are the author's.
