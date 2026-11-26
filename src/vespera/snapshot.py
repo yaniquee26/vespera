@@ -25,8 +25,12 @@ def build_snapshot(
     system_prompt: str,
     scenarios_text: str,
     max_steps: int | None = None,
+    weights_digest: str | None = None,
+    weights_quantization: str | None = None,
 ) -> Snapshot:
     return Snapshot(
+        weights_digest=weights_digest,
+        weights_quantization=weights_quantization,
         vespera_version=__version__,
         python_version=platform.python_version(),
         model=model,

@@ -120,6 +120,8 @@ def build_results(
             "max_steps": snapshot.max_steps,
             "system_prompt_sha256": snapshot.system_prompt_sha256,
             "scenarios_sha256": snapshot.scenarios_sha256,
+            "weights_digest": snapshot.weights_digest,
+            "weights_quantization": snapshot.weights_quantization,
         },
         "summary": {
             "attack_success": _rate(data.attack_rate) if data.attack_rate else None,

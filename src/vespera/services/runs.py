@@ -75,7 +75,35 @@ def begin_run(
     )
     if not same:
         raise ResumeMismatch("model, repeats or input files differ from the original run")
+    before, now = old.weights_digest, snapshot.weights_digest
+    if before and now and before != now:  # unknown on either side (older run, remote API): allowed
+        raise ResumeMismatch(
+            f"the weights of {snapshot.model} changed since the original run "
+            f"({before[:12]} -> {now[:12]}): start a new run"
+        )
     return resume, True
+
+
+def snapshot_for(
+    provider: BaseProvider | AgentProvider,
+    repeats: int,
+    system_text: str,
+    scenarios_text: str,
+    max_steps: int | None = None,
+) -> Snapshot:
+    """The conditions of a run, including the weights behind the model name when known."""
+    identity = provider.identity()
+    return build_snapshot(
+        model=provider.model,
+        temperature=provider.temperature,
+        num_predict=provider.num_predict,
+        repeats=repeats,
+        system_prompt=system_text,
+        scenarios_text=scenarios_text,
+        max_steps=max_steps,
+        weights_digest=identity.digest if identity else None,
+        weights_quantization=identity.quantization if identity else None,
+    )
 
 
 def run_and_save(
@@ -114,14 +142,7 @@ def execute_text_run(
     loaded, system_text, scenarios_text = read_inputs(scenarios, system_prompt, load_scenarios)
     cases = expand_cases(loaded)[:limit]
     provider = make_provider()
-    snapshot = build_snapshot(
-        model=provider.model,
-        temperature=provider.temperature,
-        num_predict=provider.num_predict,
-        repeats=repeats,
-        system_prompt=system_text,
-        scenarios_text=scenarios_text,
-    )
+    snapshot = snapshot_for(provider, repeats, system_text, scenarios_text)
     return run_and_save(
         db,
         snapshot,
@@ -153,15 +174,7 @@ def execute_agent_run(
     )
     cases = expand_agent_cases(loaded)[:limit]
     provider = make_provider()
-    snapshot = build_snapshot(
-        model=provider.model,
-        temperature=provider.temperature,
-        num_predict=provider.num_predict,
-        repeats=repeats,
-        system_prompt=system_text,
-        scenarios_text=scenarios_text,
-        max_steps=max_steps,
-    )
+    snapshot = snapshot_for(provider, repeats, system_text, scenarios_text, max_steps)
     return run_and_save(
         db,
         snapshot,

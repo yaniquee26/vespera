@@ -9,7 +9,7 @@ slice: engine, Studio page and tests together. The reasons are recorded in
 Labels: **S** — foundation and Studio, **F** — features, **R** — benchmarks (planned experiments
 on real models, with the hypotheses written first), **D** — documentation site.
 
-**Order:** S2 → S3 → S4 → S5 → F5 → S6 → S7 → F0 → S8 → S9 → F1 … F8, R2 and R3 when their
+**Order:** S2 → S2b → S2c → S3 → S4 → S5 → F5 → S6 → S7 → F0 → S8 → S9 → F1 … F8, R2 and R3 when their
 features are ready, then D.
 
 Each item is small enough to finish and test in one sitting. A box is ticked only when `ruff`,
@@ -45,6 +45,9 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
       honours `Retry-After`; an optional pause between requests per target
       (`request_interval`, `max_retries`). Retries are counted and shown, and never counted as a
       failure of the model; the waiting is kept out of the measured latency.
+- [x] S2c Model identity: for Ollama models the snapshot also records the digest of the weights
+      and their quantization, so a re-pulled model under the same name is noticed; a run cannot
+      be resumed on different weights, and the report shows them.
 
 ## Vespera Studio (local web app, `vespera ui`)
 
@@ -52,15 +55,19 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
       light and dark themes, navigation, security middleware ([ADR-0004](docs/adr/0004-studio-security-model.md)),
       Settings page with environment checks, the workspace location and its size.
 - [ ] S4 Targets and Playground: saved connections to bots and agents, **Test connection** sends
-      one message and shows the real request (key masked), the reply and the latency.
+      one message and shows the real request (key masked), the reply and the latency. Settings
+      also shows which model Ollama has loaded and how much video memory it takes.
 - [ ] S5 Runs and Run detail: categories with OWASP labels and interval bars, the language gap
       (EN / RO / RU), findings with evidence and agent journals, Moldovan personal data
       highlighted, snapshot, downloads.
 - [ ] S6 Library (scenario packs, EN / RO / RU side by side), Checks catalog (how each rule
       decides and where it is wrong), How it works, Gate panel, Compare.
-- [ ] S7 New run wizard and background runs: live progress, cancel and resume, automatic checks.
+- [ ] S7 New run wizard and background runs: live progress with the time left, cancel and resume,
+      automatic checks; the computer is kept awake while a run is going, so a long run overnight
+      is not cut by sleep mode.
 - [ ] S8 Browser tests with Playwright (Page Objects) in a separate CI job; screenshots for the
-      docs are taken by the same tests.
+      docs are taken by the same tests. Mock targets and a seeded database only; the browsers are
+      cached between CI runs.
 - [ ] S9 README and landing page about Studio, `SECURITY.md`, CHANGELOG, release 1.1.0.
 
 ## Features, one slice at a time (engine + Studio + tests)
@@ -80,7 +87,9 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
       never clears a number, because no official specification for the IDNP was found. A data
       protection note (Moldovan Law 195/2024) for personal data categories, as information only.
 - [ ] F2 How people really write in Moldova: Russian in Latin letters, Romanian without
-      diacritics; ş/ș and ţ/ț treated as the same letter in the checks.
+      diacritics. Text is normalised before every check: NFC, an explicit map from ş and ţ
+      (cedilla) to ș and ț (comma below) because Unicode normalisation does not join them, ё read
+      as е, and look-alike letters folded, so a marker written with a Cyrillic о is still found.
 - [ ] F3 Three to five wordings per category and language, and rates per scenario, so a language
       gap is conclusive only when it holds across different scenarios.
 - [ ] F4 Regression baseline: "worse, better or no conclusive change" against a saved run, in
@@ -89,19 +98,26 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
       including a sample of passed ones, and Vespera reports the precision and recall of its own
       checks with intervals. The labelled replies become a golden set that every change to a
       check is scored against.
-- [ ] F6 Poisoned tool descriptions (MCP-style tool poisoning).
+- [ ] F6 Poisoned tool descriptions (MCP-style tool poisoning). Each scenario carries a capability
+      control: a harmless instruction in a tool description. A model that does not follow even
+      that gets "inconclusive", not "passed": it may be too small to read the attack at all.
 - [ ] F7 A demo bank bot (FastAPI) with RAG attacks: poisoned document, another customer's
-      document, citations; API tests and browser tests against it.
-- [ ] F8 Multi-turn attacks.
+      document, citations; API tests and browser tests against it. Retrieval is deterministic
+      (keywords, no vector database), so a finding is never caused by the bot's own search; the
+      answer comes from a local model in real runs and from a fixed stub in CI.
+- [ ] F8 Multi-turn attacks as fixed chains of two to four messages. The same rules judge every
+      turn: a violation in any turn fails the case, and a refusal along the way is a pass.
 
 ## Benchmarks
 
 - [ ] R2 The bank assistant pack (F1) with several wordings (F3) on local models, plan first.
+      Several hundred agent attempts: run overnight, resumable.
 - [ ] R3 A positive control for the bench itself: a model against its abliterated version (the
       same weights with the refusal behaviour removed). The abliterated model has to fail more
       often; if Vespera does not show that, the checks are not sensitive enough. It also shows
       how much safety comes from the model's training and how much from the system prompt, in
-      each language. Scenarios stay about injection and leaks.
+      each language. Both models use the same quantization, the hypotheses are written first, and
+      scenarios stay about injection and leaks.
 
 ## Documentation site
 

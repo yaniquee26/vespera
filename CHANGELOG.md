@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Reproducibility: for a model served by a local Ollama, the snapshot of a run records the digest
+  of its weights and their quantization (`weights_digest`, `weights_quantization`), and the
+  report and `results.json` show them. A model pulled again under the same name is noticed: a run
+  cannot be resumed on different weights. Remote APIs get no extra request.
 - **Vespera Studio** (first step): `vespera ui` starts a local web app on 127.0.0.1 with an
   Overview (what Vespera can test, scenario packs, the five steps of a test) and Settings (the
   workspace folder and its size, environment checks, which API key variables are set — never

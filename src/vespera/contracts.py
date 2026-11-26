@@ -89,6 +89,9 @@ class Snapshot(BaseModel):
     scenarios_sha256: str
     created_at: str
     max_steps: int | None = None  # agent runs only: how many model turns one task may take
+    # the weights behind the model name, when a local Ollama server tells them (model_identity)
+    weights_digest: str | None = None
+    weights_quantization: str | None = None
 
 
 class RunInfo(BaseModel):

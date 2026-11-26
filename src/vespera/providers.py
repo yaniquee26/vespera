@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 import httpx
 
 from vespera.agent_contracts import AgentTurn, ToolCall, ToolSpec
+from vespera.model_identity import ModelIdentity, ollama_identity
 
 # HTTP 429 (too many requests) and 503 (busy) say "not now": the same request may work later.
 RETRY_STATUSES = frozenset({429, 503})
@@ -111,6 +112,10 @@ class _RequestCounters:
         """Seconds spent pausing before requests: time of the rate limit, not of the model."""
         return self._requests.waited if self._requests else 0.0
 
+    def identity(self) -> ModelIdentity | None:
+        """The weights behind the model name, when the server can tell (see model_identity)."""
+        return None
+
 
 class BaseProvider(_RequestCounters, ABC):
     """Abstract contract that every LLM adapter must follow."""
@@ -164,8 +169,12 @@ class OllamaProvider(BaseProvider):
         self.num_predict = num_predict
         self.temperature = temperature
         self._keep_alive = keep_alive
+        self._address = base_url
         self._client = client or httpx.Client(base_url=base_url, timeout=timeout)
         self._requests: RequestPolicy = policy or RequestPolicy()
+
+    def identity(self) -> ModelIdentity | None:
+        return ollama_identity(self._client, self._address, self.model)
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         payload = {
@@ -220,10 +229,15 @@ class OpenAICompatibleProvider(BaseProvider):
         self.num_predict = num_predict
         self.temperature = temperature
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self._address = base_url
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
         )
         self._requests: RequestPolicy = policy or RequestPolicy()
+
+    def identity(self) -> ModelIdentity | None:
+        """Known only when the server is a local Ollama behind its OpenAI-style address."""
+        return ollama_identity(self._client, self._address, self.model)
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         payload = {
@@ -455,10 +469,15 @@ class OpenAICompatibleAgentProvider(AgentProvider):
         self.num_predict = num_predict
         self.temperature = temperature
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self._address = base_url
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
         )
         self._requests: RequestPolicy = policy or RequestPolicy()
+
+    def identity(self) -> ModelIdentity | None:
+        """Known only when the server is a local Ollama behind its OpenAI-style address."""
+        return ollama_identity(self._client, self._address, self.model)
 
     def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
         payload = {

@@ -219,6 +219,7 @@ call written as plain text instead of the model's tool-call format is not counte
 <div class="card scroll">
 <table class="snap">
 <tr><td>Model</td><td>{{ d.snapshot.model }}</td></tr>
+{% if d.snapshot.weights_digest %}<tr><td>Model weights</td><td><code>{{ d.snapshot.weights_digest[:16] }}</code>{% if d.snapshot.weights_quantization %} &middot; {{ d.snapshot.weights_quantization }}{% endif %}</td></tr>{% endif %}
 <tr><td>Temperature</td><td>{{ d.snapshot.temperature }}</td></tr>
 <tr><td>Max reply length (tokens)</td><td>{{ d.snapshot.num_predict }}</td></tr>
 <tr><td>Repeats</td><td>{{ d.snapshot.repeats }}</td></tr>
