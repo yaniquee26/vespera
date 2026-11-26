@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_icons.html" as icons %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Settings</h1>
+  <p class="lead">Where Studio keeps its data, what this computer has, and which API keys are
+  available. Key values are never read into Studio.</p>
+</header>
+
+<section class="panel" data-testid="workspace">
+  <h2>Workspace</h2>
+  <dl class="facts">
+    <dt>Folder</dt><dd><code>{{ view.workspace.path }}</code></dd>
+    <dt>Chosen by</dt><dd>{{ view.workspace.chosen_by }}</dd>
+    <dt>Size</dt><dd>{{ view.workspace.size }}</dd>
+    <dt>Runs</dt><dd>{{ view.workspace.runs }}{% if not view.workspace.database_exists %} <span class="muted">(no database yet)</span>{% endif %}</dd>
+  </dl>
+  <p class="muted">To move it, start Studio with <code>vespera ui --workspace D:\Vespera</code> or set
+  the <code>VESPERA_HOME</code> environment variable.</p>
+</section>
+
+<section class="panel" data-testid="environment">
+  <h2>Environment</h2>
+  <ul class="checks">
+  {% for check in view.checks %}
+    <li class="{{ 'ok' if check.ok else ('bad' if check.required else 'warn') }}">
+      {{ icons.icon("check" if check.ok else "alert") }}
+      <b>{{ check.name }}</b><span>{{ check.detail }}</span>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+
+<section class="panel" data-testid="keys">
+  <h2>API keys</h2>
+  <table class="table">
+    <thead><tr><th>Environment variable</th><th>Used by</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for key in view.keys %}
+      <tr>
+        <td><code>{{ key.name }}</code></td>
+        <td>{{ key.used_by }}</td>
+        <td><span class="pill {{ 'ok' if key.is_set else 'idle' }}">{{ "set" if key.is_set else "not set" }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">A local Ollama model or LM Studio needs no key.</p>
+</section>
+
+<section class="panel">
+  <h2>About</h2>
+  <dl class="facts">
+    <dt>Vespera</dt><dd>{{ view.version }}</dd>
+    <dt>Python</dt><dd>{{ view.python }}</dd>
+    <dt>Address</dt><dd><code>http://127.0.0.1:{{ view.port }}/</code> — this computer only</dd>
+  </dl>
+</section>
+{% endblock %}

@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Vespera Studio** (first step): `vespera ui` starts a local web app on 127.0.0.1 with an
+  Overview (what Vespera can test, scenario packs, the five steps of a test) and Settings (the
+  workspace folder and its size, environment checks, which API key variables are set — never
+  their values). Optional extra `vespera[ui]` (FastAPI, Uvicorn, python-multipart). Every
+  response carries a strict Content Security Policy; requests from another host, without the
+  per-process token or from another site are refused. Light and dark themes share the report's
+  colours (a test keeps them identical).
 - `vespera init`: empty lines between the questions, so the setup reads more easily.
 - README and benchmark results show screenshots of the report and the comparison (light and dark).
 - Repository layout: example scenarios and system prompts live in `examples/` (a test keeps them

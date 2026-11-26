@@ -57,6 +57,7 @@ from vespera.services.runs import (
 )
 from vespera.services.targets import api_key_for, api_key_from_env
 from vespera.storage import Storage
+from vespera.workspace import resolve_workspace
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
 
@@ -836,6 +837,39 @@ def test_command(
     policy = _policy(max_attack_rate, zero_tolerance, min_exposure, project)
     json_out, junit_out = export_paths(project, json_path, junit_path)
     _finish(db, run_id, policy if has_rules(policy) else None, json_out, junit_out, reveal)
+
+
+UI_EXTRA_HINT = (
+    'Vespera Studio needs extra packages: pip install "vespera[ui] @ '
+    'git+https://github.com/yaniquee26/vespera" (or pip install -e ".[ui]" in a checkout)'
+)
+
+
+@app.command("ui")
+def ui_command(
+    workspace: Annotated[
+        Path | None,
+        typer.Option(help="Folder for Studio's database and reports "
+                     "(default: VESPERA_HOME, else ~/Vespera)."),
+    ] = None,
+    port: Annotated[
+        int, typer.Option(min=1024, max=65535, help="Port on 127.0.0.1.")
+    ] = 8765,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open Studio in the browser.")
+    ] = True,
+) -> None:
+    """Start Vespera Studio, the local web app. It listens on this computer only (127.0.0.1)."""
+    try:
+        from vespera.ui.server import address, serve
+    except ImportError as exc:
+        typer.echo(f"[FAIL] {UI_EXTRA_HINT}")
+        raise typer.Exit(code=1) from exc
+    space = resolve_workspace(workspace).ensure()
+    typer.echo(f"Vespera Studio: {address(port)}")
+    typer.echo(f"Workspace: {space.root}")
+    typer.echo("Press Ctrl+C to stop.")
+    serve(space, port, open_browser)
 
 
 @app.command("gate")

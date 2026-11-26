@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Overview</h1>
+  <p class="lead">A local test bench for chatbots and AI agents in English, Romanian and Russian.
+  Rules decide every verdict, and every rate comes with a 95% interval.</p>
+</header>
+
+<section class="kpis" data-testid="kpis">
+  <div class="kpi"><span class="kpi-value" data-testid="kpi-runs">{{ view.workspace.runs }}</span><span class="kpi-label">runs in this workspace</span></div>
+  <div class="kpi"><span class="kpi-value">{{ view.packs | length }}</span><span class="kpi-label">scenario packs</span></div>
+  <div class="kpi"><span class="kpi-value">{{ view.attacks }}</span><span class="kpi-label">kinds of attack</span></div>
+  <div class="kpi"><span class="kpi-value">{{ view.verdict_checks }}<small> + {{ view.measurements }}</small></span><span class="kpi-label">checks + measurements</span></div>
+</section>
+
+<section class="panel">
+  <h2>How a test works</h2>
+  <ol class="flow">
+    <li><b>Scenario</b><span>An attack written once in EN, RO and RU.</span></li>
+    <li><b>Target</b><span>The bot or model under test answers it.</span></li>
+    <li><b>Rule</b><span>A fixed rule judges the reply or the tool calls.</span></li>
+    <li><b>Interval</b><span>Repeats give a rate with a 95% interval.</span></li>
+    <li><b>Gate</b><span>Passed, failed or inconclusive, for CI.</span></li>
+  </ol>
+</section>
+
+<section class="panel">
+  <h2>What Vespera can test</h2>
+  <div class="grid" data-testid="targets">
+    {% for kind in view.targets %}
+    <article class="card">
+      <h3>{{ kind.title }}</h3>
+      <p>{{ kind.summary }}</p>
+      <p class="tags">
+        <span class="tag">{{ "chatbot and agent" if kind.agent_mode else "chatbot" }}</span>
+        <span class="tag">key: {{ kind.needs_key }}</span>
+      </p>
+      <code class="snippet">{{ kind.example }}</code>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Scenario packs</h2>
+  <table class="table" data-testid="packs">
+    <thead><tr><th>Pack</th><th>Mode</th><th class="num">Scenarios</th><th class="num">Cases</th><th>Languages</th></tr></thead>
+    <tbody>
+    {% for item in view.packs %}
+      <tr>
+        <td><b>{{ item.pack.title }}</b><br><span class="muted">{{ item.pack.summary }}</span></td>
+        <td><span class="tag">{{ item.pack.mode }}</span></td>
+        <td class="num">{{ item.scenarios }}</td>
+        <td class="num">{{ item.cases }}</td>
+        <td>{{ item.languages | map(attribute="value") | map("upper") | join(" · ") }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Start a run</h2>
+  <p class="muted">Runs start from the command line for now; the runs list and the run wizard come
+  next in Studio.</p>
+  <pre class="code"><code>vespera test mock              # no model needed, a quick look at the reports
+vespera test qwen2.5:7b        # a local Ollama model
+vespera test --mode agent qwen2.5:7b</code></pre>
+</section>
+{% endblock %}

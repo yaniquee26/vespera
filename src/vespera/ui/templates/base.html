@@ -1,0 +1,36 @@
+{% import "_icons.html" as icons %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>{% block title %}Vespera Studio{% endblock %} · Vespera Studio</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/vespera.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" data-testid="brand">
+      <img src="/static/logo.svg" alt="" width="30" height="30">
+      <span>Vespera <b>Studio</b></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      {%- for path, label, name in navigation %}
+      <a href="{{ path }}" class="nav-item{% if current == path %} active{% endif %}"
+         {%- if current == path %} aria-current="page"{% endif %} data-testid="nav-{{ name }}">
+        {{ icons.icon(name) }}<span>{{ label }}</span>
+      </a>
+      {%- endfor %}
+    </nav>
+    <div class="sidebar-foot">
+      <span class="dot ok"></span> 127.0.0.1 only<br>
+      <span class="muted">v{{ version }}</span>
+    </div>
+  </aside>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

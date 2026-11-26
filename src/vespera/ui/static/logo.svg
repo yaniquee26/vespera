@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Vespera</title>
+  <rect width="64" height="64" rx="14" fill="#3a5bd9"/>
+  <path d="M15 18 L32 48 L49 18" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 6 L48.2 11.8 L54 14 L48.2 16.2 L46 22 L43.8 16.2 L38 14 L43.8 11.8 Z" fill="#f0c36a"/>
+</svg>
