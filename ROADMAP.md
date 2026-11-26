@@ -54,7 +54,7 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
 - [x] S3 App skeleton: optional `vespera[ui]` extra, FastAPI + Jinja2 + htmx, design system with
       light and dark themes, navigation, security middleware ([ADR-0004](docs/adr/0004-studio-security-model.md)),
       Settings page with environment checks, the workspace location and its size.
-- [ ] S4 Targets and Playground: saved connections to bots and agents, **Test connection** sends
+- [x] S4 Targets and Playground: saved connections to bots and agents, **Test connection** sends
       one message and shows the real request (key masked), the reply and the latency. Settings
       also shows which model Ollama has loaded and how much video memory it takes.
 - [ ] S5 Runs and Run detail: categories with OWASP labels and interval bars, the language gap

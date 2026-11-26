@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ target.name }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ target.name }}</h1>
+  <p class="lead">{{ kind.title }} · <code>{{ target.address }}</code></p>
+</header>
+
+<section class="panel">
+  <h2>Settings</h2>
+  <dl class="facts">
+  {% for name, value in settings %}
+    <dt>{{ name }}</dt><dd><code>{{ value }}</code></dd>
+  {% endfor %}
+  {% if target.key_env %}
+    <dt>key</dt><dd><span class="pill {{ 'ok' if key_set else 'warn' }}">{{ target.key_env }} {{ "set" if key_set else "not set" }}</span></dd>
+  {% endif %}
+  </dl>
+  {% if not settings and not target.key_env %}<p class="muted">Nothing to set: this target uses the defaults.</p>{% endif %}
+</section>
+
+<section class="panel" data-testid="playground">
+  <h2>Test connection</h2>
+  <form class="form" hx-post="/targets/{{ target.name }}/try" hx-target="#try-result" hx-indicator="#try-busy">
+    <label class="field">
+      <span>Message</span>
+      <textarea name="message" rows="2" data-testid="try-message">Hello! What can you help me with?</textarea>
+    </label>
+    <div class="actions">
+      <button class="button primary" type="submit" data-testid="try-send">Send one message</button>
+      <span id="try-busy" class="htmx-indicator muted">Waiting for the reply…</span>
+    </div>
+  </form>
+  <div id="try-result" data-testid="try-result"></div>
+</section>
+
+<section class="panel">
+  <h2>Delete</h2>
+  <p class="muted">Removes the target from this workspace. Runs made with it stay.</p>
+  <button class="button danger" hx-post="/targets/{{ target.name }}/delete" hx-confirm="Delete the target {{ target.name }}?" data-testid="delete-target">Delete target</button>
+</section>
+{% endblock %}

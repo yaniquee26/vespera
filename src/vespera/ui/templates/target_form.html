@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}New target{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>New target: {{ kind.title }}</h1>
+  <p class="lead">{{ kind.summary }} API keys are never typed here: give the name of the
+  environment variable that holds the key.</p>
+</header>
+
+<form class="panel form" hx-post="/targets" hx-target="#form-problem" hx-swap="innerHTML" data-testid="target-form">
+  <input type="hidden" name="type" value="{{ kind.key }}">
+  <label class="field">
+    <span>Name</span>
+    <input name="name" required pattern="[a-z0-9][a-z0-9\-]{0,39}" placeholder="my-bot" autocomplete="off">
+    <small>Small letters, digits and dashes.</small>
+  </label>
+  {% for field in kind.fields %}
+  <label class="field">
+    <span>{{ field }}</span>
+    {% if field == "extra_body" %}
+    <textarea name="{{ field }}" rows="2" placeholder='{"channel": "web"}'></textarea>
+    {% else %}
+    <input name="{{ field }}" autocomplete="off" placeholder="{{ placeholders.get(field, '') }}">
+    {% endif %}
+    <small>{{ help[field] }}</small>
+  </label>
+  {% endfor %}
+  <div id="form-problem" role="alert"></div>
+  <div class="actions">
+    <button class="button primary" type="submit">Save target</button>
+    <a class="button" href="/targets">Cancel</a>
+  </div>
+</form>
+{% endblock %}

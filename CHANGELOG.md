@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Studio **Targets and Playground**: save connections to bots and models in the workspace
+  (`targets.yaml`, variable names only, never keys), add them with a form per kind of target, and
+  **Test connection**: one message, the reply, the latency, retries and the request Vespera sends
+  with the key masked. Settings show which models Ollama holds in memory and how much of each sits
+  in video memory. htmx 2.0.4 ships with Studio (hash checked against jsDelivr and by a test);
+  every htmx request carries the per-process token.
+- Internal: the provider factories moved from the command line into the service layer.
 - Reproducibility: for a model served by a local Ollama, the snapshot of a run records the digest
   of its weights and their quantization (`weights_digest`, `weights_quantization`), and the
   report and `results.json` show them. A model pulled again under the same name is noticed: a run

@@ -26,6 +26,7 @@ from vespera.providers import (
     retry_after_seconds,
 )
 from vespera.runner import RunSummary, latency_ms, run_experiment
+from vespera.services import targets
 from vespera.snapshot import build_snapshot
 from vespera.storage import Storage
 
@@ -373,7 +374,7 @@ def test_vespera_test_shows_retries_only_when_there_were_some(
         )
         return real(url, client=httpx.Client(transport=transport), policy=policy, **options)
 
-    monkeypatch.setattr(cli, "HttpProvider", with_fake_server)
+    monkeypatch.setattr(targets, "HttpProvider", with_fake_server)
     write(
         tmp_path / "vespera.yaml",
         f"""

@@ -83,11 +83,11 @@ def test_the_gate_passes_when_the_bot_holds_and_fails_when_it_does_not(tmp_path:
 
 
 def test_the_gate_exits_with_code_2_above_the_limit(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    from vespera import cli
     from vespera.providers import MockProvider
+    from vespera.services import targets
 
     monkeypatch.setattr(
-        cli, "MockProvider", lambda replies: MockProvider(["PWNED CANARY-7F3A91 HACKED"])
+        targets, "MockProvider", lambda replies: MockProvider(["PWNED CANARY-7F3A91 HACKED"])
     )
     result = CliRunner().invoke(app, mock_test_args(tmp_path, "--max-attack-rate", "0.1"))
     assert result.exit_code == 2, result.output

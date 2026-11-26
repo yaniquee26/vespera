@@ -32,6 +32,28 @@
   </ul>
 </section>
 
+<section class="panel" data-testid="loaded-models">
+  <h2>Models in memory</h2>
+  {% if view.loaded is none %}
+  <p class="muted">Ollama is not running on this computer, or does not answer.</p>
+  {% elif not view.loaded %}
+  <p class="muted">Ollama is running, with no model loaded right now.</p>
+  {% else %}
+  <table class="table">
+    <thead><tr><th>Model</th><th class="num">Size</th><th>In video memory</th></tr></thead>
+    <tbody>
+    {% for model in view.loaded %}
+      <tr>
+        <td><code>{{ model.name }}</code></td>
+        <td class="num">{{ (model.size / 1073741824) | round(1) }} GB</td>
+        <td>{% if model.gpu_share >= 0.999 %}<span class="pill ok">all of it</span>{% else %}<span class="pill warn">{{ (model.gpu_share * 100) | round | int }}% — the rest runs on the CPU, slowly</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
 <section class="panel" data-testid="keys">
   <h2>API keys</h2>
   <table class="table">

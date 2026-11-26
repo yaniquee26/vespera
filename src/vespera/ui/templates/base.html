@@ -6,7 +6,10 @@
 <meta name="csrf-token" content="{{ csrf_token }}">
 <title>{% block title %}Vespera Studio{% endblock %} · Vespera Studio</title>
 <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
 <link rel="stylesheet" href="/static/vespera.css">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
 </head>
 <body>
 <div class="shell">

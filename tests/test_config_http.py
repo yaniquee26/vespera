@@ -13,6 +13,7 @@ from vespera.bundled import read_bundled
 from vespera.cli import _config_text, _policy
 from vespera.config import ConfigError, GateConfig, ProjectConfig, TargetConfig, load_config
 from vespera.providers import HttpProvider, ProviderError, RequestPolicy, dig, put
+from vespera.services import targets
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples"
@@ -349,7 +350,7 @@ def test_a_leaking_http_bot_fails_the_gate_and_receives_the_configured_requests(
     def with_fake_server(url: str, **options: Any) -> HttpProvider:
         return real(url, client=bot(leaky), **options)
 
-    monkeypatch.setattr(cli, "HttpProvider", with_fake_server)
+    monkeypatch.setattr(targets, "HttpProvider", with_fake_server)
     write(
         tmp_path / "vespera.yaml",
         f"""

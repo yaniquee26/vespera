@@ -18,7 +18,6 @@ import yaml
 from pydantic import ValidationError
 
 from vespera import __version__
-from vespera.agent_contracts import AgentTurn
 from vespera.agent_runner import MAX_STEPS
 from vespera.agent_scenarios import expand_agent_cases, load_agent_scenarios
 from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bundled
@@ -31,14 +30,8 @@ from vespera.gate import GatePolicy, GateResult, GateStatus
 from vespera.providers import (
     AgentProvider,
     BaseProvider,
-    HttpProvider,
-    MockAgentProvider,
-    MockProvider,
     OllamaProvider,
-    OpenAICompatibleAgentProvider,
-    OpenAICompatibleProvider,
     ProviderError,
-    RequestPolicy,
 )
 from vespera.report import ReportData, ReportError, build_report, render_html
 from vespera.runner import RunSummary
@@ -55,7 +48,8 @@ from vespera.services.runs import (
     execute_text_run,
     list_runs,
 )
-from vespera.services.targets import api_key_for, api_key_from_env
+from vespera.services.targets import agent_provider as _agent_target_provider
+from vespera.services.targets import text_provider as _target_provider
 from vespera.storage import Storage
 from vespera.workspace import resolve_workspace
 
@@ -126,59 +120,6 @@ NoConfigOption = Annotated[
 OpenOption = Annotated[
     bool, typer.Option("--open", help="Open the HTML report in the browser when it is ready.")
 ]
-
-
-def _request_policy(target: TargetConfig) -> RequestPolicy:
-    """Pacing and retries for a target's HTTP requests."""
-    return RequestPolicy(request_interval=target.request_interval, max_retries=target.max_retries)
-
-
-def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
-    """The text provider for a target. The API key comes from the environment, never from a file."""
-    if mock or target.type == "mock":
-        return MockProvider(["I cannot help with that."])
-    if target.type == "http":
-        assert target.url is not None and target.reply_field is not None  # config validated
-        return HttpProvider(
-            target.url,
-            reply_field=target.reply_field,
-            request_field=target.request_field,
-            extra_body=target.extra_body,
-            system_field=target.system_field,
-            api_key=api_key_from_env(target.api_key_env),
-            api_key_header=target.api_key_header,
-            api_key_prefix=target.api_key_prefix,
-            timeout=target.timeout,
-            policy=_request_policy(target),
-        )
-    assert target.model is not None  # config validated
-    if target.type == "openai":
-        address = target.base_url or "https://api.openai.com/v1"
-        return OpenAICompatibleProvider(
-            model=target.model,
-            base_url=address,
-            api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
-            policy=_request_policy(target),
-        )
-    return OllamaProvider(
-        model=target.model,
-        base_url=target.base_url or "http://localhost:11434",
-        policy=_request_policy(target),
-    )
-
-
-def _agent_target_provider(target: TargetConfig, mock: bool = False) -> AgentProvider:
-    if mock or target.type == "mock":
-        return MockAgentProvider([AgentTurn(text="I cannot help with that.")])
-    assert target.model is not None  # config validated
-    default = "https://api.openai.com/v1" if target.type == "openai" else "http://localhost:11434/v1"
-    address = target.base_url or default
-    return OpenAICompatibleAgentProvider(
-        model=target.model,
-        base_url=address,
-        api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
-        policy=_request_policy(target),
-    )
 
 
 def _chosen_run(db: Path, run_id: int | None) -> int:

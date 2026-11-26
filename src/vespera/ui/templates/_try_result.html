@@ -1,0 +1,14 @@
+<div class="result">
+  <div class="result-head">
+    {% if result.error %}<span class="pill bad">no reply</span>{% else %}<span class="pill ok">reply received</span>{% endif %}
+    <span class="muted">{{ result.latency_ms }} ms{% if result.retries %} · {{ result.retries }} retries after rate limits{% endif %}</span>
+  </div>
+  {% if result.error %}
+  <p class="alert bad" data-testid="try-error">{{ result.error }}</p>
+  {% else %}
+  <h3>Reply</h3>
+  <pre class="code wrap" data-testid="try-reply">{{ result.reply }}</pre>
+  {% endif %}
+  <h3>Request</h3>
+  <pre class="code" data-testid="try-request">{{ request_json }}</pre>
+</div>

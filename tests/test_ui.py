@@ -37,7 +37,9 @@ def space(tmp_path: Path) -> Workspace:
 
 @pytest.fixture
 def settings(space: Workspace) -> UiSettings:
-    return UiSettings(workspace=space, environment_checks=lambda: CHECKS)
+    return UiSettings(
+        workspace=space, environment_checks=lambda: CHECKS, loaded_models=lambda: None
+    )
 
 
 @pytest.fixture
@@ -111,7 +113,13 @@ def test_pages_have_no_inline_script_or_style_so_the_csp_holds(
     client: TestClient, path: str
 ) -> None:
     html = client.get(path).text
-    assert "<script" not in html and "style=" not in html and "<style" not in html
+    scripts = re.findall(r"<script\b[^>]*>(.*?)</script>", html, flags=re.S)
+    assert scripts and all(body.strip() == "" for body in scripts)  # only files from /static
+    assert re.findall(r'<script\b[^>]*\bsrc="(/static/[^"]+)"', html) == [
+        "/static/htmx.min.js",
+        "/static/app.js",
+    ]
+    assert "style=" not in html and "<style" not in html
 
 
 # ---------------------------------------------------------------- security

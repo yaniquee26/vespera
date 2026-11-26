@@ -4,12 +4,16 @@ import platform
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import httpx
+
 from vespera import __version__
 from vespera.catalog import ATTACKS, CHECK_CATALOG, PACKS, TARGET_KINDS, PackOverview, TargetKind
 from vespera.catalog import pack_overview as load_pack_overview
 from vespera.config import SERVICES
 from vespera.doctor import CheckStatus
-from vespera.services.targets import env_var_is_set
+from vespera.model_identity import LoadedModel, ollama_loaded
+from vespera.services.errors import TargetError
+from vespera.services.targets import OLLAMA_ADDRESS, SavedTarget, env_var_is_set, list_targets
 from vespera.storage import Storage
 from vespera.workspace import ENV_VAR, Workspace, human_size
 
@@ -80,6 +84,49 @@ class SettingsView:
     workspace: WorkspaceView
     checks: list[CheckStatus]
     keys: list[KeyVariable]
+    loaded: list[LoadedModel] | None = None  # None: Ollama could not be asked
+
+
+def local_ollama_models() -> list[LoadedModel] | None:
+    """What the local Ollama holds in memory now, with its share in video memory."""
+    with httpx.Client() as client:
+        return ollama_loaded(client, OLLAMA_ADDRESS)
+
+
+@dataclass(frozen=True)
+class TargetRow:
+    target: SavedTarget
+    key_set: bool
+
+
+def targets_view(space: Workspace) -> tuple[list[TargetRow], str | None]:
+    """The saved targets, and a problem to show if the file cannot be read."""
+    try:
+        saved = list_targets(space)
+    except TargetError as exc:
+        return [], str(exc)
+    rows = [TargetRow(item, bool(item.key_env and env_var_is_set(item.key_env))) for item in saved]
+    return rows, None
+
+
+def target_settings(target: SavedTarget) -> list[tuple[str, str]]:
+    """The settings of a target that differ from the defaults, key variable shown separately."""
+    data = target.config.model_dump(mode="json", exclude_defaults=True)
+    hidden = ("type", "api_key_env")
+    return [(name, str(value)) for name, value in data.items() if name not in hidden]
+
+
+PLACEHOLDERS = {
+    "model": "qwen2.5:7b",
+    "base_url": "http://localhost:11434",
+    "api_key_env": "OPENAI_API_KEY",
+    "url": "https://bot.example.com/chat",
+    "reply_field": "answer",
+    "request_field": "message",
+    "timeout": "60",
+    "request_interval": "0",
+    "max_retries": "3",
+}
 
 
 def key_variables() -> list[KeyVariable]:
@@ -95,7 +142,10 @@ def key_variables() -> list[KeyVariable]:
 
 
 def settings_view(
-    space: Workspace, port: int, environment_checks: Callable[[], list[CheckStatus]]
+    space: Workspace,
+    port: int,
+    environment_checks: Callable[[], list[CheckStatus]],
+    loaded_models: Callable[[], list[LoadedModel] | None] = local_ollama_models,
 ) -> SettingsView:
     return SettingsView(
         version=__version__,
@@ -104,4 +154,5 @@ def settings_view(
         workspace=workspace_view(space),
         checks=environment_checks(),
         keys=key_variables(),
+        loaded=loaded_models(),
     )

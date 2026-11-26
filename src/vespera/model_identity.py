@@ -39,6 +39,43 @@ def _matches(entry: dict[str, Any], model: str) -> bool:
     return model in names or (":" not in model and f"{model}:latest" in names)
 
 
+@dataclass(frozen=True)
+class LoadedModel:
+    """A model Ollama holds in memory right now (`GET /api/ps`)."""
+
+    name: str
+    size: int  # bytes in memory
+    size_vram: int  # of which in video memory
+
+    @property
+    def gpu_share(self) -> float:
+        """1.0 when the whole model sits in video memory; less means slow, partly on the CPU."""
+        return self.size_vram / self.size if self.size else 0.0
+
+
+def ollama_loaded(client: httpx.Client, address: str) -> list[LoadedModel] | None:
+    """The models a local Ollama has loaded, or None when it cannot be asked."""
+    if not is_local(address):
+        return None
+    try:
+        response = client.get(f"{server_root(address)}/api/ps", timeout=PROBE_TIMEOUT)
+        response.raise_for_status()
+        entries = response.json().get("models", [])
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return None
+    loaded = []
+    for entry in entries if isinstance(entries, list) else []:
+        if isinstance(entry, dict) and entry.get("name"):
+            loaded.append(
+                LoadedModel(
+                    str(entry["name"]),
+                    int(entry.get("size") or 0),
+                    int(entry.get("size_vram") or 0),
+                )
+            )
+    return loaded
+
+
 def ollama_identity(client: httpx.Client, address: str, model: str) -> ModelIdentity | None:
     """The identity of `model` on the Ollama server at `address`, or None if it cannot be told.
 

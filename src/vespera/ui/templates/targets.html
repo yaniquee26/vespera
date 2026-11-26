@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Targets{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Targets</h1>
+  <p class="lead">The bots and models Vespera talks to. Save one, send it a message with
+  <b>Test connection</b>, and see the exact request and the reply.</p>
+</header>
+
+{% if problem %}<p class="alert bad" data-testid="targets-problem">{{ problem }}</p>{% endif %}
+
+<section class="panel">
+  <h2>Add a target</h2>
+  <div class="grid">
+  {% for kind in kinds %}
+    <a class="card card-link" href="/targets/new?type={{ kind.key }}" data-testid="add-{{ kind.key }}">
+      <h3>{{ kind.title }}</h3>
+      <p>{{ kind.summary }}</p>
+    </a>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="panel" data-testid="saved-targets">
+  <h2>Saved targets</h2>
+  {% if targets %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Type</th><th>Address</th><th>Model</th><th>Key</th></tr></thead>
+    <tbody>
+    {% for item in targets %}
+      <tr>
+        <td><a href="/targets/{{ item.target.name }}"><b>{{ item.target.name }}</b></a></td>
+        <td><span class="tag">{{ item.target.config.type }}</span></td>
+        <td><code>{{ item.target.address }}</code></td>
+        <td>{{ item.target.config.model or "—" }}</td>
+        <td>{% if item.target.key_env %}<span class="pill {{ 'ok' if item.key_set else 'warn' }}">{{ item.target.key_env }} {{ "set" if item.key_set else "not set" }}</span>{% else %}<span class="muted">none needed</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No targets yet. Pick a kind above; a fake model is the quickest way to try.</p>
+  {% endif %}
+</section>
+{% endblock %}
