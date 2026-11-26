@@ -34,6 +34,9 @@ class TargetConfig(BaseModel):
     api_key_header: str = "Authorization"
     api_key_prefix: str = "Bearer "
     timeout: float = Field(default=60.0, gt=0)
+    # any HTTP target: for servers with a rate limit
+    request_interval: float = Field(default=0.0, ge=0)  # seconds between two requests
+    max_retries: int = Field(default=3, ge=0, le=10)  # repeats of a request after HTTP 429/503
 
     @model_validator(mode="after")
     def _needs(self) -> Self:

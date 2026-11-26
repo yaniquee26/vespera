@@ -41,9 +41,10 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
       with a concurrent mode (WAL, busy timeout); a workspace folder for Studio, chosen by
       `--workspace`, then `VESPERA_HOME`, then `~/Vespera`; a CI step that runs the installed
       `vespera` command against the mock target.
-- [ ] S2b Rate limits: a request that gets HTTP 429 or 503 is retried with growing pauses and
-      honours `Retry-After`; an optional pause between requests per target. Retries are counted
-      and shown, and never counted as a failure of the model.
+- [x] S2b Rate limits: a request that gets HTTP 429 or 503 is retried with growing pauses and
+      honours `Retry-After`; an optional pause between requests per target
+      (`request_interval`, `max_retries`). Retries are counted and shown, and never counted as a
+      failure of the model; the waiting is kept out of the measured latency.
 
 ## Vespera Studio (local web app, `vespera ui`)
 

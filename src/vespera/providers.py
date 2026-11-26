@@ -1,7 +1,11 @@
 """Model providers: unified interface between Vespera and any LLM."""
 
 import json
+import math
+import random
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from itertools import cycle
 from typing import Any
 from urllib.parse import urlparse
@@ -10,8 +14,105 @@ import httpx
 
 from vespera.agent_contracts import AgentTurn, ToolCall, ToolSpec
 
+# HTTP 429 (too many requests) and 503 (busy) say "not now": the same request may work later.
+RETRY_STATUSES = frozenset({429, 503})
 
-class BaseProvider(ABC):
+
+def retry_after_seconds(response: httpx.Response) -> float | None:
+    """The wait a server asks for in `Retry-After`, in seconds. None if absent or a date."""
+    try:
+        seconds = float(response.headers.get("Retry-After", ""))
+    except ValueError:
+        return None
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
+
+
+class RequestPolicy:
+    """How an HTTP provider paces its requests and retries when the server is busy.
+
+    Requests start at least `request_interval` seconds apart. An answer with HTTP 429 or 503 is
+    sent again, at most `max_retries` times: after the wait the server asks for in `Retry-After`,
+    otherwise after an exponential pause with jitter (about 1, 2, 4 seconds, each cut by up to a
+    half at random). A server that asks for a wait longer than `max_wait` is not waited for. The
+    last answer is returned as it is, so the provider reports it like any other HTTP error.
+    Retries and pauses are counted: a run shows the retries and keeps the pauses out of latency.
+    """
+
+    def __init__(
+        self,
+        *,
+        request_interval: float = 0.0,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_wait: float = 60.0,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+        jitter: Callable[[], float] = random.random,
+    ) -> None:
+        self.request_interval = request_interval
+        self.max_retries = max_retries
+        self._base_delay = base_delay
+        self._max_wait = max_wait
+        self._sleep = sleep
+        self._clock = clock
+        self._jitter = jitter
+        self._last_start: float | None = None
+        self.retries = 0  # requests sent again
+        self.waited = 0.0  # seconds spent pausing, for pacing and before retries
+
+    def post(self, client: httpx.Client, url: str, **options: Any) -> httpx.Response:
+        """POST with pacing and retries. Network errors are raised as they are, not retried."""
+        retry = 0
+        while True:
+            self._keep_interval()
+            response = client.post(url, **options)
+            if response.status_code not in RETRY_STATUSES or retry >= self.max_retries:
+                return response
+            delay = self._delay(response, retry)
+            if delay is None:
+                return response
+            retry += 1
+            self.retries += 1
+            self._pause(delay)
+
+    def _keep_interval(self) -> None:
+        now = self._clock()
+        if self._last_start is not None:
+            gap = self.request_interval - (now - self._last_start)
+            if gap > 0:
+                self._pause(gap)
+                now = self._clock()
+        self._last_start = now
+
+    def _delay(self, response: httpx.Response, retry: int) -> float | None:
+        asked = retry_after_seconds(response)
+        if asked is not None:
+            return asked if asked <= self._max_wait else None
+        step = min(self._max_wait, self._base_delay * 2**retry)
+        return step * (1 - self._jitter() / 2)
+
+    def _pause(self, seconds: float) -> None:
+        self.waited += seconds
+        self._sleep(seconds)
+
+
+class _RequestCounters:
+    """What a run reads from any provider. Only providers that talk HTTP make these move."""
+
+    _requests: RequestPolicy | None = None
+
+    @property
+    def retries(self) -> int:
+        """Requests sent again because the server was busy (HTTP 429 or 503)."""
+        return self._requests.retries if self._requests else 0
+
+    @property
+    def waited(self) -> float:
+        """Seconds spent pausing before requests: time of the rate limit, not of the model."""
+        return self._requests.waited if self._requests else 0.0
+
+
+class BaseProvider(_RequestCounters, ABC):
     """Abstract contract that every LLM adapter must follow."""
 
     model: str
@@ -57,12 +158,14 @@ class OllamaProvider(BaseProvider):
         timeout: float = 120.0,
         keep_alive: str = "5m",
         client: httpx.Client | None = None,
+        policy: RequestPolicy | None = None,
     ) -> None:
         self.model = model
         self.num_predict = num_predict
         self.temperature = temperature
         self._keep_alive = keep_alive
         self._client = client or httpx.Client(base_url=base_url, timeout=timeout)
+        self._requests: RequestPolicy = policy or RequestPolicy()
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         payload = {
@@ -76,7 +179,7 @@ class OllamaProvider(BaseProvider):
             "options": {"num_predict": self.num_predict, "temperature": self.temperature},
         }
         try:
-            response = self._client.post("/api/chat", json=payload)
+            response = self._requests.post(self._client, "/api/chat", json=payload)
             response.raise_for_status()
             content = response.json()["message"]["content"]
         except httpx.HTTPStatusError as exc:
@@ -111,6 +214,7 @@ class OpenAICompatibleProvider(BaseProvider):
         temperature: float = 0.7,
         timeout: float = 120.0,
         client: httpx.Client | None = None,
+        policy: RequestPolicy | None = None,
     ) -> None:
         self.model = model
         self.num_predict = num_predict
@@ -119,6 +223,7 @@ class OpenAICompatibleProvider(BaseProvider):
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
         )
+        self._requests: RequestPolicy = policy or RequestPolicy()
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         payload = {
@@ -132,7 +237,7 @@ class OpenAICompatibleProvider(BaseProvider):
             "stream": False,
         }
         try:
-            response = self._client.post("/chat/completions", json=payload)
+            response = self._requests.post(self._client, "/chat/completions", json=payload)
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
         except httpx.HTTPStatusError as exc:
@@ -196,6 +301,7 @@ class HttpProvider(BaseProvider):
         api_key_prefix: str = "Bearer ",
         timeout: float = 60.0,
         client: httpx.Client | None = None,
+        policy: RequestPolicy | None = None,
     ) -> None:
         parts = urlparse(url)
         self.model = f"{parts.netloc}{parts.path}".rstrip("/") or url  # no query: it may hold a key
@@ -208,6 +314,7 @@ class HttpProvider(BaseProvider):
         self._system_field = system_field
         headers = {api_key_header: f"{api_key_prefix}{api_key}"} if api_key else {}
         self._client = client or httpx.Client(timeout=timeout, headers=headers)
+        self._requests: RequestPolicy = policy or RequestPolicy()
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         body = json.loads(json.dumps(self._extra_body))  # a private copy for every request
@@ -218,7 +325,7 @@ class HttpProvider(BaseProvider):
         except ValueError as exc:
             raise ProviderError(str(exc)) from exc
         try:
-            response = self._client.post(self._url, json=body)
+            response = self._requests.post(self._client, self._url, json=body)
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as exc:
@@ -247,11 +354,14 @@ def _explain_http_error(model: str, status: int, where: str = "--model and --bas
             f"model '{model}' or the address was not found (HTTP 404): check {where}"
         )
     if status == 429:
-        return "too many requests or no credit left (HTTP 429): wait or check the account"
+        return (
+            "too many requests or no credit left (HTTP 429): "
+            "slow down with target.request_interval or check the account"
+        )
     return f"the server answered with an error (HTTP {status})"
 
 
-class AgentProvider(ABC):
+class AgentProvider(_RequestCounters, ABC):
     """A model that can ask for tools. Messages use the OpenAI chat format."""
 
     model: str
@@ -339,6 +449,7 @@ class OpenAICompatibleAgentProvider(AgentProvider):
         temperature: float = 0.7,
         timeout: float = 180.0,
         client: httpx.Client | None = None,
+        policy: RequestPolicy | None = None,
     ) -> None:
         self.model = model
         self.num_predict = num_predict
@@ -347,6 +458,7 @@ class OpenAICompatibleAgentProvider(AgentProvider):
         self._client = client or httpx.Client(
             base_url=base_url.rstrip("/"), timeout=timeout, headers=headers
         )
+        self._requests: RequestPolicy = policy or RequestPolicy()
 
     def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
         payload = {
@@ -358,7 +470,7 @@ class OpenAICompatibleAgentProvider(AgentProvider):
             "stream": False,
         }
         try:
-            response = self._client.post("/chat/completions", json=payload)
+            response = self._requests.post(self._client, "/chat/completions", json=payload)
             response.raise_for_status()
             return parse_agent_turn(response.json())
         except httpx.HTTPStatusError as exc:

@@ -22,6 +22,12 @@ class RunSummary:
     attempted: int
     skipped: int
     errors: int
+    retries: int = 0  # requests sent again after HTTP 429/503; never a model failure
+
+
+def latency_ms(started: float, waited: float) -> int:
+    """Milliseconds since `started`, without the pauses spent waiting for a rate limit."""
+    return max(0, int((time.perf_counter() - started - waited) * 1000))
 
 
 def run_experiment(
@@ -39,20 +45,20 @@ def run_experiment(
     done = storage.done_keys(run_id)
     total = len(cases) * repeats
     attempted = skipped = errors = streak = 0
+    retries_before = provider.retries
 
     for repeat in range(1, repeats + 1):
         for case in cases:
             if (case.id, repeat) in done:
                 skipped += 1
                 continue
-            started = time.perf_counter()
+            started, waited_before = time.perf_counter(), provider.waited
             error: str | None = None
             reply = ""
             try:
                 reply = provider.generate(system_prompt, case.prompt)
             except ProviderError as exc:
                 error = str(exc)
-            latency_ms = int((time.perf_counter() - started) * 1000)
             storage.add_attempt(
                 run_id,
                 Attempt(
@@ -60,7 +66,7 @@ def run_experiment(
                     repeat=repeat,
                     reply=reply,
                     error=error,
-                    latency_ms=latency_ms,
+                    latency_ms=latency_ms(started, provider.waited - waited_before),
                     created_at=now_iso(),
                 ),
             )
@@ -79,4 +85,10 @@ def run_experiment(
                 on_progress(attempted + skipped, total, case.id, repeat, error)
 
     storage.finish_run(run_id)
-    return RunSummary(total=total, attempted=attempted, skipped=skipped, errors=errors)
+    return RunSummary(
+        total=total,
+        attempted=attempted,
+        skipped=skipped,
+        errors=errors,
+        retries=provider.retries - retries_before,
+    )

@@ -108,10 +108,11 @@ def test_ask_reports_failure_with_exit_code_one(monkeypatch: pytest.MonkeyPatch)
 
 
 def make_openai(handler, **kwargs):  # type: ignore[no-untyped-def]
-    from vespera.providers import OpenAICompatibleProvider
+    from vespera.providers import OpenAICompatibleProvider, RequestPolicy
 
     client = httpx.Client(base_url="http://test/v1", transport=httpx.MockTransport(handler))
-    return OpenAICompatibleProvider(model="car-bot", client=client, **kwargs)
+    no_wait = RequestPolicy(sleep=lambda seconds: None)  # a 429 is retried, but not waited for
+    return OpenAICompatibleProvider(model="car-bot", client=client, policy=no_wait, **kwargs)
 
 
 def test_openai_provider_sends_expected_request_and_returns_text() -> None:

@@ -57,6 +57,26 @@ refused as an unknown field, on purpose.
 Each question is sent alone, as one request. Vespera does not control the bot's own settings, so
 the report shows temperature and length as unset for such a target.
 
+### Rate limits
+
+Public APIs and many bots limit how fast they may be asked. Two settings work for every target
+except `mock`:
+
+```yaml
+target:
+  # ...
+  request_interval: 1.5  # seconds between the starts of two requests (default: 0)
+  max_retries: 3         # how often a request is sent again after HTTP 429 or 503 (default: 3)
+```
+
+When the server answers HTTP 429 (too many requests) or 503 (busy), Vespera waits and sends the
+same request again: as long as the server asks in its `Retry-After` header, otherwise about 1, 2,
+then 4 seconds. A server that asks for more than a minute is not waited for. A retry is never
+counted as a failure of the bot: the run line shows it apart (`2 requests retried after HTTP
+429/503`), and the waiting is left out of the measured answer time. When the retries run out,
+that one attempt is saved as a technical error, like a dropped connection, and `--resume`
+repeats it later. For a limit like "20 requests per minute", set `request_interval: 3`.
+
 ## 3. Tell Vespera what the bot is supposed to protect
 
 Leak checks need something to look for. Put a line like this into the bot's own system prompt, in
@@ -101,6 +121,7 @@ but the data cannot show the bot is safe). Flags override the file, for example
 | `no reply found at 'x'` | `reply_field` is wrong. Look at the bot's real JSON answer and follow it key by key. |
 | `the bot did not answer with JSON` | The endpoint returns HTML or plain text. Vespera needs JSON. |
 | `the server refused the API key (HTTP 401)` | Check the variable name and the key, and that the header is the one the bot expects. |
+| `too many requests or no credit left (HTTP 429)` | Retries ran out. Set a larger `request_interval`, or check the account's credit. |
 | `collides with a fixed value` | `request_field` points inside a value you fixed in `extra_body`. |
 | `vespera.yaml has problems: ... repeat` | A typo. Unknown fields are refused so mistakes do not go unnoticed. |
 

@@ -33,6 +33,12 @@
   be read while it is written. A workspace folder for the coming web app: `--workspace`, then
   `VESPERA_HOME`, then `~/Vespera`.
 - CI also runs the installed `vespera` command end to end against the mock target.
+- Rate limits: every HTTP target (Ollama, OpenAI-style APIs, HTTP bots, agent runs) sends a
+  request again after HTTP 429 or 503, waiting as long as `Retry-After` asks, otherwise about 1,
+  2, then 4 seconds with jitter. New target settings `request_interval` (seconds between two
+  requests, default 0) and `max_retries` (default 3). Retries are shown in the run line only when
+  there were some, never count as a failure of the model, and the waiting is left out of the
+  measured latency. When the retries run out, the attempt is a technical error as before.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

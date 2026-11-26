@@ -38,6 +38,7 @@ from vespera.providers import (
     OpenAICompatibleAgentProvider,
     OpenAICompatibleProvider,
     ProviderError,
+    RequestPolicy,
 )
 from vespera.report import ReportData, ReportError, build_report, render_html
 from vespera.runner import RunSummary
@@ -126,6 +127,11 @@ OpenOption = Annotated[
 ]
 
 
+def _request_policy(target: TargetConfig) -> RequestPolicy:
+    """Pacing and retries for a target's HTTP requests."""
+    return RequestPolicy(request_interval=target.request_interval, max_retries=target.max_retries)
+
+
 def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
     """The text provider for a target. The API key comes from the environment, never from a file."""
     if mock or target.type == "mock":
@@ -142,6 +148,7 @@ def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
             api_key_header=target.api_key_header,
             api_key_prefix=target.api_key_prefix,
             timeout=target.timeout,
+            policy=_request_policy(target),
         )
     assert target.model is not None  # config validated
     if target.type == "openai":
@@ -150,8 +157,13 @@ def _target_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
             model=target.model,
             base_url=address,
             api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
+            policy=_request_policy(target),
         )
-    return OllamaProvider(model=target.model, base_url=target.base_url or "http://localhost:11434")
+    return OllamaProvider(
+        model=target.model,
+        base_url=target.base_url or "http://localhost:11434",
+        policy=_request_policy(target),
+    )
 
 
 def _agent_target_provider(target: TargetConfig, mock: bool = False) -> AgentProvider:
@@ -164,6 +176,7 @@ def _agent_target_provider(target: TargetConfig, mock: bool = False) -> AgentPro
         model=target.model,
         base_url=address,
         api_key=api_key_for(address, target.api_key_env or "OPENAI_API_KEY"),
+        policy=_request_policy(target),
     )
 
 
@@ -315,9 +328,13 @@ def _print_progress(done: int, total: int, case_id: str, repeat: int, error: str
 
 
 def _print_saved(run_id: int, summary: RunSummary, db: Path) -> int:
+    retried = ""
+    if summary.retries:
+        requests = "request" if summary.retries == 1 else "requests"
+        retried = f", {summary.retries} {requests} retried after HTTP 429/503"
     typer.echo(
         f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
-        f"{summary.skipped} skipped. Saved to {db}"
+        f"{summary.skipped} skipped{retried}. Saved to {db}"
     )
     return run_id
 

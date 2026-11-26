@@ -40,7 +40,7 @@ TARGET_KINDS: tuple[TargetKind, ...] = (
         title="Model on this computer (Ollama)",
         summary="A model that runs on this computer through Ollama. Private and free; a "
         "graphics card makes it fast.",
-        fields=("model", "base_url"),
+        fields=("model", "base_url", "request_interval", "max_retries"),
         needs_key="never",
         agent_mode=True,
         example="vespera test qwen2.5:7b",
@@ -50,7 +50,7 @@ TARGET_KINDS: tuple[TargetKind, ...] = (
         title="Model behind an OpenAI-style API",
         summary="Any server that speaks the OpenAI chat API: OpenAI, OpenRouter, LM Studio, "
         "vLLM and many company gateways.",
-        fields=("model", "base_url", "api_key_env"),
+        fields=("model", "base_url", "api_key_env", "request_interval", "max_retries"),
         needs_key="for any server that is not on this computer",
         agent_mode=True,
         example="vespera test openai:gpt-4o-mini",
@@ -70,6 +70,8 @@ TARGET_KINDS: tuple[TargetKind, ...] = (
             "api_key_header",
             "api_key_prefix",
             "timeout",
+            "request_interval",
+            "max_retries",
         ),
         needs_key="only if the bot asks for one",
         agent_mode=False,
@@ -99,6 +101,10 @@ FIELD_HELP: dict[str, str] = {
     "api_key_header": "The header that carries the key (default: Authorization).",
     "api_key_prefix": "Text before the key in that header (default: 'Bearer ').",
     "timeout": "Seconds to wait for one answer (default: 60).",
+    "request_interval": "Seconds between two requests, for servers with a rate limit "
+    "(default: 0).",
+    "max_retries": "How many times to send a request again when the server is busy "
+    "(HTTP 429 or 503), never counted as a model failure (default: 3).",
 }
 
 

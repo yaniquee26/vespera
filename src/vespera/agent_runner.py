@@ -14,7 +14,7 @@ from vespera.agent_contracts import (
 )
 from vespera.contracts import Attempt
 from vespera.providers import AgentProvider, ProviderError
-from vespera.runner import ProgressCallback, RunAborted, RunSummary
+from vespera.runner import ProgressCallback, RunAborted, RunSummary, latency_ms
 from vespera.snapshot import now_iso
 from vespera.storage import Storage
 
@@ -83,20 +83,20 @@ def run_agent_experiment(
     done = storage.done_keys(run_id)
     total = len(cases) * repeats
     attempted = skipped = errors = streak = 0
+    retries_before = provider.retries
 
     for repeat in range(1, repeats + 1):
         for case in cases:
             if (case.id, repeat) in done:
                 skipped += 1
                 continue
-            started = time.perf_counter()
+            started, waited_before = time.perf_counter(), provider.waited
             error: str | None = None
             trace: AgentTrace | None = None
             try:
                 trace = run_agent_case(provider, case, system_prompt, max_steps)
             except ProviderError as exc:
                 error = str(exc)
-            latency_ms = int((time.perf_counter() - started) * 1000)
             storage.add_attempt(
                 run_id,
                 Attempt(
@@ -104,7 +104,7 @@ def run_agent_experiment(
                     repeat=repeat,
                     reply=trace.final_reply() if trace else "",
                     error=error,
-                    latency_ms=latency_ms,
+                    latency_ms=latency_ms(started, provider.waited - waited_before),
                     created_at=now_iso(),
                 ),
             )
@@ -125,4 +125,10 @@ def run_agent_experiment(
                 on_progress(attempted + skipped, total, case.id, repeat, error)
 
     storage.finish_run(run_id)
-    return RunSummary(total=total, attempted=attempted, skipped=skipped, errors=errors)
+    return RunSummary(
+        total=total,
+        attempted=attempted,
+        skipped=skipped,
+        errors=errors,
+        retries=provider.retries - retries_before,
+    )

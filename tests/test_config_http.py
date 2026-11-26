@@ -12,7 +12,7 @@ from vespera import cli
 from vespera.bundled import read_bundled
 from vespera.cli import _config_text, _policy
 from vespera.config import ConfigError, GateConfig, ProjectConfig, TargetConfig, load_config
-from vespera.providers import HttpProvider, ProviderError, dig, put
+from vespera.providers import HttpProvider, ProviderError, RequestPolicy, dig, put
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples"
@@ -172,7 +172,10 @@ def test_http_provider_sends_the_key_in_the_chosen_header_and_stores_nothing_els
 )
 def test_http_provider_explains_what_went_wrong(response: httpx.Response, fragment: str) -> None:
     provider = HttpProvider(
-        "https://bot.example.com/chat", reply_field="answer", client=bot(lambda r: response)
+        "https://bot.example.com/chat",
+        reply_field="answer",
+        client=bot(lambda r: response),
+        policy=RequestPolicy(sleep=lambda seconds: None),  # a 429 is retried, but not waited for
     )
     with pytest.raises(ProviderError, match=fragment):
         provider.generate("s", "q")
