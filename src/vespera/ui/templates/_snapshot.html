@@ -1,0 +1,18 @@
+<section class="panel" data-testid="snapshot">
+  <h2>Snapshot</h2>
+  <p class="muted">The conditions of this run. A run can only be resumed under the same ones.</p>
+  {% set s = v.snapshot %}
+  <dl class="facts">
+    <dt>model</dt><dd><code>{{ s.model }}</code></dd>
+    <dt>weights</dt><dd>{% if s.weights_digest %}<code>{{ s.weights_digest }}</code>{% if s.weights_quantization %} · {{ s.weights_quantization }}{% endif %}{% else %}<span class="muted">not reported by the target</span>{% endif %}</dd>
+    <dt>temperature</dt><dd>{{ s.temperature }}</dd>
+    <dt>max tokens</dt><dd>{{ s.num_predict }}</dd>
+    <dt>repeats</dt><dd>{{ s.repeats }}</dd>
+    {% if s.max_steps is not none %}<dt>max steps</dt><dd>{{ s.max_steps }}</dd>{% endif %}
+    <dt>system prompt</dt><dd><code>sha256 {{ s.system_prompt_sha256 }}</code></dd>
+    <dt>scenarios</dt><dd><code>sha256 {{ s.scenarios_sha256 }}</code></dd>
+    <dt>Vespera</dt><dd>{{ s.vespera_version }} · Python {{ s.python_version }}</dd>
+    <dt>created</dt><dd>{{ s.created_at }}</dd>
+    <dt>attempts saved</dt><dd>{{ v.attempts }}</dd>
+  </dl>
+</section>

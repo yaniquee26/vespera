@@ -57,7 +57,7 @@ Each item is small enough to finish and test in one sitting. A box is ticked onl
 - [x] S4 Targets and Playground: saved connections to bots and agents, **Test connection** sends
       one message and shows the real request (key masked), the reply and the latency. Settings
       also shows which model Ollama has loaded and how much video memory it takes.
-- [ ] S5 Runs and Run detail: categories with OWASP labels and interval bars, the language gap
+- [x] S5 Runs and Run detail: categories with OWASP labels and interval bars, the language gap
       (EN / RO / RU), findings with evidence and agent journals, Moldovan personal data
       highlighted, snapshot, downloads.
 - [ ] S6 Library (scenario packs, EN / RO / RU side by side), Checks catalog (how each rule

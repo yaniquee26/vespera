@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_bars.html" as bars %}
+{% block title %}Runs{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Runs</h1>
+  <p class="lead">Every run saved in this workspace, newest first. A share always comes with its
+  95% interval and the number of attempts behind it.</p>
+</header>
+
+<section class="panel" data-testid="runs">
+  {% if runs %}
+  <table class="table">
+    <thead><tr><th>Run</th><th>Started</th><th>Model</th><th>Mode</th><th class="num">Attempts</th><th>Attack success</th><th>State</th></tr></thead>
+    <tbody>
+    {% for row in runs %}
+      <tr data-testid="run-{{ row.run_id }}">
+        <td><a href="/runs/{{ row.run_id }}"><b>#{{ row.run_id }}</b></a></td>
+        <td>{{ row.started.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td><code>{{ row.model }}</code></td>
+        <td><span class="tag">{{ row.mode }}</span></td>
+        <td class="num">{{ row.attempts }}/{{ row.expected }}</td>
+        <td class="bar-cell">{% if row.attack_rate %}{{ bars.numbers(row.attack_rate) }}{{ bars.interval(row.attack_rate) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>
+          {% if row.status != "finished" %}<span class="pill warn">not finished</span>
+          {% elif row.checked %}<span class="pill ok">checked</span>
+          {% else %}<span class="pill idle">not checked</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" data-testid="no-runs">No runs yet. Try one against a fake model:</p>
+  <code class="snippet" data-testid="first-run">vespera test mock --no-config --db "{{ database }}"</code>
+  {% endif %}
+</section>
+{% endblock %}

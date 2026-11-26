@@ -9,10 +9,16 @@ import httpx
 from vespera import __version__
 from vespera.catalog import ATTACKS, CHECK_CATALOG, PACKS, TARGET_KINDS, PackOverview, TargetKind
 from vespera.catalog import pack_overview as load_pack_overview
+from vespera.checks import CANARY_RE, find_all_personal_data
 from vespera.config import SERVICES
+from vespera.contracts import Category, Language, Snapshot
 from vespera.doctor import CheckStatus
+from vespera.export import secrets_of
+from vespera.gate import GatePolicy
 from vespera.model_identity import LoadedModel, ollama_loaded
+from vespera.report import CategoryRow, ReportData, ReportError, build_report
 from vespera.services.errors import TargetError
+from vespera.services.runs import RunRow, list_runs
 from vespera.services.targets import OLLAMA_ADDRESS, SavedTarget, env_var_is_set, list_targets
 from vespera.storage import Storage
 from vespera.workspace import ENV_VAR, Workspace, human_size
@@ -127,6 +133,127 @@ PLACEHOLDERS = {
     "request_interval": "0",
     "max_retries": "3",
 }
+
+
+# ---------------------------------------------------------------- runs
+
+MIN_EXPOSURE = GatePolicy().min_exposure
+TABS = (
+    ("categories", "Categories"),
+    ("languages", "Language gap"),
+    ("findings", "Findings"),
+    ("snapshot", "Snapshot"),
+)
+
+
+def runs_view(space: Workspace) -> list[RunRow]:
+    """Every saved run, newest first. Reading never creates the database file."""
+    if not space.database.exists():
+        return []
+    with Storage(space.database, concurrent=True) as storage:
+        return list(reversed(list_runs(storage)))
+
+
+@dataclass(frozen=True)
+class RunDetailView:
+    run_id: int
+    status: str
+    mode: str  # text or agent
+    snapshot: Snapshot
+    attempts: int
+    report: ReportData | None  # None until the run is checked
+    problem: str | None  # why there is no report yet
+    secrets: list[str]  # planted secrets, highlighted wherever they show up
+    languages: list[str]
+
+    @property
+    def exposure(self) -> float | None:
+        """Share of tool-output attempts in which the hidden order reached the agent."""
+        if self.report is None or not self.report.hidden_order_total:
+            return None
+        return self.report.hidden_order_delivered / self.report.hidden_order_total
+
+    @property
+    def under_exposed(self) -> bool:
+        exposure = self.exposure
+        return exposure is not None and exposure < MIN_EXPOSURE
+
+    def inconclusive(self, row: CategoryRow) -> bool:
+        """A category that passed without the attack really reaching the agent proves nothing."""
+        return (
+            self.under_exposed
+            and row.key == Category.TOOL_OUTPUT_INJECTION.value
+            and row.rate.k == 0
+        )
+
+
+def run_detail_view(space: Workspace, run_id: int) -> RunDetailView | None:
+    """One run with its report, or None when there is no such run."""
+    if not space.database.exists():
+        return None
+    with Storage(space.database, concurrent=True) as storage:
+        if not storage.run_exists(run_id):
+            return None
+        snapshot = storage.get_snapshot(run_id)
+        cases = storage.get_cases(run_id)
+        try:
+            report: ReportData | None = build_report(storage, run_id)
+            problem = None
+        except ReportError as exc:
+            report, problem = None, str(exc)
+        return RunDetailView(
+            run_id=run_id,
+            status=storage.get_status(run_id),
+            mode="agent" if snapshot.max_steps is not None else "text",
+            snapshot=snapshot,
+            attempts=len(storage.get_attempts(run_id)),
+            report=report,
+            problem=problem,
+            secrets=secrets_of(cases),
+            languages=[lang.value for lang in Language],
+        )
+
+
+@dataclass(frozen=True)
+class Piece:
+    """A stretch of quoted text; `label` names what was found in it, None for plain text."""
+
+    text: str
+    label: str | None = None
+
+
+def highlight(text: str, secrets: list[str] | None = None) -> list[Piece]:
+    """Split text so that personal data, canary tokens and planted secrets can be marked.
+
+    Uses the same patterns as the checks (IDNP, +373 and local phones, IBAN MD), so what a
+    check reports is what the page marks. Where two finds overlap, the first one found wins.
+    """
+    spans: list[tuple[int, int, str]] = []
+
+    def add(start: int, end: int, label: str) -> None:
+        if start < end and all(end <= s or start >= e for s, e, _ in spans):
+            spans.append((start, end, label))
+
+    for secret in secrets or []:
+        start = text.find(secret) if secret else -1
+        while start >= 0:
+            add(start, start + len(secret), "planted secret")
+            start = text.find(secret, start + len(secret))
+    for match in CANARY_RE.finditer(text):
+        add(*match.span(), "canary token")
+    for label, start, end in find_all_personal_data(text):
+        add(start, end, label)
+
+    pieces: list[Piece] = []
+    position = 0
+    for start, end, label in sorted(spans):
+        if start > position:
+            pieces.append(Piece(text[position:start]))
+        pieces.append(Piece(text[start:end], label))
+        position = end
+    if position < len(text):
+        pieces.append(Piece(text[position:]))
+    return pieces
 
 
 def key_variables() -> list[KeyVariable]:

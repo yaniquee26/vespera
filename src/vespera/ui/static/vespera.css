@@ -136,6 +136,33 @@ p { margin: 0 0 10px; }
 .htmx-indicator { display: none; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
 
+/* runs and run detail */
+.crumbs { margin: 0 0 4px; font-size: 0.88rem; }
+.small { font-size: 0.86rem; }
+.button .icon { vertical-align: -3px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--line); }
+.tab { padding: 8px 14px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; font-weight: 600; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.bar-cell { min-width: 170px; }
+.rate { display: block; font-variant-numeric: tabular-nums; font-size: 0.9rem; white-space: nowrap; }
+.ci { display: block; width: 100%; max-width: 260px; height: 12px; margin: 4px 0; }
+.ci-track { fill: var(--track); }
+.ci-band { fill: var(--ok); opacity: 0.55; }
+.ci-band.hit { fill: var(--bad); }
+.ci-harmless .ci-band.hit { fill: var(--warn); }
+.ci-point { fill: var(--text); }
+mark.found { background: var(--warn-soft); color: var(--warn); border-radius: 3px; padding: 0 2px;
+  outline: 1px solid var(--warn); }
+.finding { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.finding:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.evidence { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.evidence summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.evidence .label { margin: 12px 0 4px; font-size: 0.8rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em; }
+
 /* narrow screens: the menu becomes a bar on top */
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }

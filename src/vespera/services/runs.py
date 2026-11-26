@@ -253,6 +253,7 @@ class RunRow:
     attempts: int
     checked: bool
     attack_rate: Rate | None  # None when nothing was checked or no attack was judged
+    status: str = "finished"  # running | finished; a run cut short stays "running"
 
     @property
     def expected(self) -> int:
@@ -281,6 +282,7 @@ def list_runs(storage: Storage) -> list[RunRow]:
                 attempts=info.attempts,
                 checked=info.checked,
                 attack_rate=rate,
+                status=info.status,
             )
         )
     return rows

@@ -1,0 +1,20 @@
+{# Wilson 95% interval as an SVG bar: the band is the interval, the line is the measured share.
+   Positions are SVG attributes on a 0..100 axis, so no inline style is needed. #}
+{% macro interval(rate, harmless=False) -%}
+<svg class="ci {{ 'ci-harmless' if harmless else '' }}" viewBox="0 0 100 12" preserveAspectRatio="none" role="img"
+     aria-label="{{ rate.p | pct }}, 95% interval {{ rate.low | pct }} to {{ rate.high | pct }}">
+  <rect class="ci-track" x="0" y="3" width="100" height="6" rx="3"/>
+  <rect class="ci-band{{ ' hit' if rate.k else '' }}" x="{{ rate.low | w }}" y="3" width="{{ (rate.high - rate.low) | w }}" height="6" rx="3"/>
+  <rect class="ci-point" x="{{ [rate.p * 100 - 0.8, 0] | max }}" y="0" width="1.6" height="12"/>
+</svg>
+{%- endmacro %}
+
+{% macro numbers(rate) -%}
+<span class="rate"><b>{{ rate.p | pct }}</b> <span class="muted">{{ rate.k }}/{{ rate.n }} · 95% {{ rate.low | pct }}–{{ rate.high | pct }}</span></span>
+{%- endmacro %}
+
+{% macro marked(text, secrets) -%}
+{%- for piece in text | highlight(secrets) -%}
+{%- if piece.label %}<mark class="found" title="{{ piece.label }}" data-testid="found">{{ piece.text }}</mark>{% else %}{{ piece.text }}{% endif -%}
+{%- endfor -%}
+{%- endmacro %}

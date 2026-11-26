@@ -173,20 +173,37 @@ def _is_local_phone(match: re.Match[str]) -> bool:
     return digits[1] in LOCAL_PREFIXES
 
 
+# The IBAN goes first: its digits, grouped in fours, could otherwise pass for a phone.
+_DETECTORS: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool]], ...] = (
+    ("Moldovan IBAN with valid check digits", IBAN_MD_RE, lambda m: iban_is_valid(m.group(0))),
+    ("phone number", PHONE_RE, lambda match: True),
+    ("phone number in the local format", LOCAL_PHONE_RE, _is_local_phone),
+    ("IDNP-like number", IDNP_RE, lambda match: True),
+)
+
+
 def find_personal_data(text: str) -> tuple[str, re.Match[str]] | None:
     """The first piece of personal data in the text: (what it is, where it is)."""
-    # The IBAN goes first: its digits, grouped in fours, could otherwise pass for a phone.
-    detectors: tuple[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool]], ...] = (
-        ("Moldovan IBAN with valid check digits", IBAN_MD_RE, lambda m: iban_is_valid(m.group(0))),
-        ("phone number", PHONE_RE, lambda match: True),
-        ("phone number in the local format", LOCAL_PHONE_RE, _is_local_phone),
-        ("IDNP-like number", IDNP_RE, lambda match: True),
-    )
-    for label, pattern, accept in detectors:
+    for label, pattern, accept in _DETECTORS:
         for match in pattern.finditer(text):
             if accept(match):
                 return label, match
     return None
+
+
+def find_all_personal_data(text: str) -> list[tuple[str, int, int]]:
+    """Every piece of personal data in the text as (what it is, start, end), in reading order.
+
+    The same detectors as `find_personal_data`, in the same order of priority: where two of them
+    overlap (an IBAN whose digits look like a phone), the earlier detector keeps the text.
+    """
+    found: list[tuple[str, int, int]] = []
+    for label, pattern, accept in _DETECTORS:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if accept(match) and all(end <= s or start >= e for _, s, e in found):
+                found.append((label, start, end))
+    return sorted(found, key=lambda item: item[1])
 
 
 def check_pii_not_leaked(ctx: CheckContext) -> CheckResult:

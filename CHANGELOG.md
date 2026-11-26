@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- Studio **Runs and Run detail**: every run of the workspace, newest first, with its size, state
+  and attack success rate with the 95% interval. A run page has tabs: **Categories** (OWASP
+  label, severity, interval bars, stability between repeats; a tool-output attack that rarely
+  reached the agent is marked inconclusive), **Language gap** (EN / RO / RU side by side, a gap
+  is called conclusive only when the intervals do not overlap), **Findings** (the evidence, the
+  question, the full reply and the agent journal, with IDNPs, `+373` and local phones, Moldovan
+  IBANs, canary tokens and planted secrets marked) and **Snapshot**. Downloads of `report.html`,
+  `results.json` and `junit.xml` are masked. Interval bars are SVG attributes, so the strict
+  content security policy still holds.
 - Studio **Targets and Playground**: save connections to bots and models in the workspace
   (`targets.yaml`, variable names only, never keys), add them with a form per kind of target, and
   **Test connection**: one message, the reply, the latency, retries and the request Vespera sends

@@ -21,6 +21,7 @@ from vespera.doctor import CheckStatus, run_all
 from vespera.model_identity import LoadedModel
 from vespera.providers import BaseProvider
 from vespera.services.errors import TargetError
+from vespera.services.results import junit_xml, report_html, results_json
 from vespera.services.targets import (
     build_target,
     delete_target,
@@ -30,6 +31,7 @@ from vespera.services.targets import (
     text_provider,
     try_target,
 )
+from vespera.storage import Storage
 from vespera.ui.security import (
     ALLOWED_HOSTS,
     SECURITY_HEADERS,
@@ -38,8 +40,13 @@ from vespera.ui.security import (
 )
 from vespera.ui.views import (
     PLACEHOLDERS,
+    TABS,
+    RunDetailView,
+    highlight,
     local_ollama_models,
     overview_view,
+    run_detail_view,
+    runs_view,
     settings_view,
     target_settings,
     targets_view,
@@ -52,6 +59,7 @@ DEFAULT_PORT = 8765
 # Pages in the side menu, in order: (path, label, icon name in static/icons.svg)
 NAVIGATION = (
     ("/", "Overview", "overview"),
+    ("/runs", "Runs", "runs"),
     ("/targets", "Targets", "targets"),
     ("/settings", "Settings", "settings"),
 )
@@ -70,6 +78,15 @@ class UiSettings:
 MAX_MESSAGE = 4000  # characters of one Playground message
 
 
+def percent(value: float) -> str:
+    return f"{round(value * 100)}%"
+
+
+def bar_width(value: float) -> str:
+    """A share as a coordinate on a 0..100 SVG axis (an attribute, so the CSP holds)."""
+    return f"{value * 100:.1f}"
+
+
 def create_app(settings: UiSettings) -> FastAPI:
     app = FastAPI(
         title="Vespera Studio", version=__version__, docs_url=None, redoc_url=None,
@@ -79,6 +96,7 @@ def create_app(settings: UiSettings) -> FastAPI:
     templates.env.globals.update(
         version=__version__, navigation=NAVIGATION, csrf_token=settings.csrf_token
     )
+    templates.env.filters.update(highlight=highlight, pct=percent, w=bar_width)
     origins = allowed_origins(settings.port)
 
     # Added first, so it runs inside the guard below and its refusals get the same headers.
@@ -200,6 +218,72 @@ def create_app(settings: UiSettings) -> FastAPI:
         except TargetError as exc:
             return problem(str(exc))
         return Response(status_code=204, headers={"HX-Redirect": "/targets"})
+
+    # ------------------------------------------------------------ runs and run detail
+
+    def run_or_none(run_id: str) -> RunDetailView | None:
+        if not run_id.isdigit():
+            return None
+        return run_detail_view(settings.workspace, int(run_id))
+
+    @app.get("/runs", response_class=HTMLResponse)
+    def runs_page(request: Request) -> HTMLResponse:
+        return page(
+            request,
+            "runs.html",
+            runs=runs_view(settings.workspace),
+            database=str(settings.workspace.database),
+        )
+
+    @app.get("/runs/{run_id}", response_model=None)
+    def run_page(request: Request, run_id: str, tab: str = "categories") -> Response:
+        view = run_or_none(run_id)
+        if view is None or tab not in dict(TABS):
+            return not_found(request)
+        return page(
+            request,
+            "run_detail.html",
+            v=view,
+            tab=tab,
+            tabs=TABS,
+            database=str(settings.workspace.database),
+            current="/runs",
+        )
+
+    @app.get("/runs/{run_id}/tabs/{tab}", response_model=None)
+    def run_tab(request: Request, run_id: str, tab: str) -> Response:
+        view = run_or_none(run_id)
+        if view is None or tab not in dict(TABS):
+            return not_found(request)
+        return templates.TemplateResponse(
+            request, "_run_tabs.html", {"v": view, "tab": tab, "tabs": TABS}
+        )
+
+    downloads = {
+        "results.json": "application/json",
+        "junit.xml": "application/xml",
+        "report.html": "text/html; charset=utf-8",
+    }
+
+    @app.get("/runs/{run_id}/download/{name}", response_model=None)
+    def download(request: Request, run_id: str, name: str) -> Response:
+        """A masked copy of the results: these files are meant to leave this computer."""
+        view = run_or_none(run_id)
+        if view is None or view.report is None or name not in downloads:
+            return not_found(request)
+        with Storage(settings.workspace.database, concurrent=True) as storage:
+            if name == "results.json":
+                body = results_json(storage, view.run_id, view.report, None, reveal=False)
+            elif name == "junit.xml":
+                body = junit_xml(storage, view.run_id, reveal=False)
+            else:
+                body = report_html(storage, view.run_id, view.report, reveal=False)
+        filename = f"vespera-run-{view.run_id}-{name}"
+        return Response(
+            body,
+            media_type=downloads[name],
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> Response:

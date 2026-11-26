@@ -1,0 +1,87 @@
+{% import "_bars.html" as bars %}
+{% set d = v.report %}
+<nav class="tabs" role="tablist" aria-label="Run sections">
+  {% for key, label in tabs %}
+  <a class="tab{% if key == tab %} active{% endif %}" role="tab" aria-selected="{{ 'true' if key == tab else 'false' }}"
+     href="/runs/{{ v.run_id }}?tab={{ key }}" hx-get="/runs/{{ v.run_id }}/tabs/{{ key }}" hx-target="#run-tabs"
+     hx-push-url="/runs/{{ v.run_id }}?tab={{ key }}" data-testid="tab-{{ key }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if tab == "categories" %}
+<section class="panel" data-testid="categories">
+  <h2>Categories</h2>
+  <p class="muted">Share of attempts where the rule was broken. For harmless questions this is the share of needless refusals.</p>
+  <table class="table">
+    <thead><tr><th>Category</th><th>OWASP</th><th>Severity</th><th class="bar-cell">Broken</th><th>Stable</th></tr></thead>
+    <tbody>
+    {% for row in d.rows %}
+      <tr data-testid="category-{{ row.key }}">
+        <td><b>{{ row.label }}</b></td>
+        <td>{% if row.owasp %}<span class="tag">{{ row.owasp }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{{ row.severity }}</td>
+        <td class="bar-cell">{{ bars.numbers(row.rate) }}{{ bars.interval(row.rate, row.harmless) }}
+          {% if v.inconclusive(row) %}<span class="pill warn" data-testid="inconclusive">inconclusive: the hidden order rarely arrived</span>{% endif %}</td>
+        <td>{% if row.stability and row.stability.judged_cases %}{{ row.stability.judged_cases - row.stability.flaky_cases }}/{{ row.stability.judged_cases }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">"Passed" is not "safe": it means these rules saw no violation in these attempts. Stable: cases whose verdict did not change between repeats.</p>
+</section>
+
+{% elif tab == "languages" %}
+<section class="panel" data-testid="languages">
+  <h2>Language gap</h2>
+  <p class="muted">The same attacks in English, Romanian and Russian. A gap is called conclusive only when the 95% intervals do not overlap.</p>
+  <table class="table">
+    <thead><tr><th>Category</th>{% for lang in v.languages %}<th class="bar-cell">{{ lang | upper }}</th>{% endfor %}<th>Gap</th></tr></thead>
+    <tbody>
+    {% for row in d.rows %}
+      <tr data-testid="gap-{{ row.key }}">
+        <td><b>{{ row.label }}</b></td>
+        {% for lang in v.languages %}
+        <td class="bar-cell">{% if lang in row.by_language %}{{ bars.numbers(row.by_language[lang]) }}{{ bars.interval(row.by_language[lang], row.harmless) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        {% endfor %}
+        <td>{% if row.language_gap is none %}<span class="muted">one language</span>
+          {% elif row.language_gap %}<span class="pill bad">conclusive</span>
+          {% else %}<span class="pill idle">not conclusive</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" data-testid="reply-language">Reply in the language of the question: {{ d.language_matches }} of {{ d.language_known }} replies whose language could be told{% if d.language_unknown %}; {{ d.language_unknown }} too short or unclear{% endif %}.</p>
+</section>
+
+{% elif tab == "findings" %}
+<section class="panel" data-testid="findings">
+  <h2>Findings</h2>
+  {% if not d.findings %}
+  <p class="muted">No rule was broken in this run. That is not proof of safety: only these attacks were tried.</p>
+  {% endif %}
+  {% for finding in d.findings %}
+  <article class="finding" data-testid="finding-{{ finding.key }}">
+    <h3>{{ finding.label }}</h3>
+    <p>{{ finding.statement }}</p>
+    {% for e in finding.evidence %}
+    <details class="evidence"{% if loop.first %} open{% endif %}>
+      <summary><code>{{ e.attempt_id }}</code> <span class="tag">{{ e.language }}</span> <span class="tag">{{ e.check }}</span> <span class="muted">{{ e.detail }}</span></summary>
+      <p class="label">Evidence</p>
+      <pre class="code wrap">{{ bars.marked(e.excerpt, v.secrets) }}</pre>
+      <p class="label">Question</p>
+      <pre class="code wrap">{{ bars.marked(e.prompt, v.secrets) }}</pre>
+      <p class="label">Full reply</p>
+      <pre class="code wrap">{{ bars.marked(e.reply, v.secrets) }}</pre>
+      {% if e.trace %}
+      <p class="label">Agent journal</p>
+      <pre class="code wrap" data-testid="journal">{{ bars.marked(e.trace, v.secrets) }}</pre>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+
+{% else %}
+{% include "_snapshot.html" %}
+{% endif %}

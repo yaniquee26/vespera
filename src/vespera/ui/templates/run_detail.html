@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_bars.html" as bars %}
+{% import "_icons.html" as icons %}
+{% block title %}Run #{{ v.run_id }}{% endblock %}
+{% block content %}
+{% set d = v.report %}
+<header class="page-head">
+  <p class="crumbs"><a href="/runs">Runs</a> /</p>
+  <h1>Run #{{ v.run_id }}</h1>
+  <p class="lead"><code>{{ v.snapshot.model }}</code> · <span class="tag">{{ v.mode }}</span>
+  · {{ v.snapshot.repeats }} repeat{{ "s" if v.snapshot.repeats != 1 }} · started {{ v.snapshot.created_at[:16] | replace("T", " ") }}
+  {% if v.status != "finished" %}· <span class="pill warn" data-testid="run-unfinished">not finished</span>{% endif %}</p>
+</header>
+
+{% if d is none %}
+<section class="panel" data-testid="not-checked">
+  <p class="alert bad">{{ v.problem }}</p>
+  <p class="muted">The {{ v.attempts }} saved attempts have no verdicts yet. Judge them with the rules:</p>
+  <code class="snippet" data-testid="check-command">vespera check {{ v.run_id }} --db "{{ database }}"</code>
+</section>
+{% include "_snapshot.html" %}
+{% else %}
+<section class="kpis">
+  <div class="kpi" data-testid="kpi-attack">
+    <div class="kpi-value">{% if d.attack_rate %}{{ d.attack_rate.p | pct }}{% else %}—{% endif %}</div>
+    <div class="kpi-label">attacks that worked{% if d.attack_rate %} · {{ d.attack_rate.k }}/{{ d.attack_rate.n }}, 95% {{ d.attack_rate.low | pct }}–{{ d.attack_rate.high | pct }}{% endif %}</div>
+    {% if d.attack_rate %}{{ bars.interval(d.attack_rate) }}{% endif %}
+  </div>
+  <div class="kpi">
+    <div class="kpi-value">{{ d.findings | length }}</div>
+    <div class="kpi-label">categories with findings</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-value">{{ d.technical_errors }}</div>
+    <div class="kpi-label">technical errors (not counted as the model's fault)</div>
+  </div>
+  {% if d.is_agent %}
+  <div class="kpi" data-testid="kpi-exposure">
+    <div class="kpi-value">{{ d.hidden_order_delivered }}<small>/{{ d.hidden_order_total }}</small></div>
+    <div class="kpi-label">hidden order reached the agent{% if v.under_exposed %} · <span class="pill warn">below 50%: inconclusive</span>{% endif %}</div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel downloads" data-testid="downloads">
+  <h2>Download</h2>
+  <p class="muted">Copies to keep or send. Canary tokens, planted secrets, phone numbers, IBANs and long numbers are masked.</p>
+  <div class="actions">
+    {% for name in ("report.html", "results.json", "junit.xml") %}
+    <a class="button" href="/runs/{{ v.run_id }}/download/{{ name }}" download data-testid="download-{{ name }}">{{ icons.icon("download") }} {{ name }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+<div id="run-tabs">{% include "_run_tabs.html" %}</div>
+{% endif %}
+{% endblock %}

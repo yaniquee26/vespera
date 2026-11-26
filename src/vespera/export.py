@@ -8,12 +8,13 @@ people, leaked values are masked by default; the HTML report keeps the full proo
 import json
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from typing import Any
 
 from vespera.checks import IBAN_MD_RE, LOCAL_PHONE_RE, PHONE_RE
 from vespera.contracts import Attempt, Case, Category, CheckResult, CheckStatus, Snapshot
 from vespera.gate import GateResult
-from vespera.report import ReportData
+from vespera.report import EvidenceView, ReportData
 from vespera.stats import Rate, attempt_verdicts
 from vespera.taxonomy import risk_of
 
@@ -48,6 +49,26 @@ def mask(text: str, secrets: list[str] | None = None) -> str:
     for pattern in (IBAN_MD_RE, PHONE_RE, LOCAL_PHONE_RE):
         text = pattern.sub(MASK, text)
     return _LONG_NUMBER.sub(MASK, text)
+
+
+def mask_report(data: ReportData, secrets: list[str] | None = None) -> ReportData:
+    """The same report with every quoted text masked, for a copy that leaves this computer."""
+
+    def hide(item: EvidenceView) -> EvidenceView:
+        return replace(
+            item,
+            detail=mask(item.detail, secrets),
+            excerpt=mask(item.excerpt, secrets),
+            prompt=mask(item.prompt, secrets),
+            reply=mask(item.reply, secrets),
+            trace=None if item.trace is None else mask(item.trace, secrets),
+        )
+
+    findings = [
+        replace(finding, evidence=[hide(item) for item in finding.evidence])
+        for finding in data.findings
+    ]
+    return replace(data, findings=findings)
 
 
 def _rate(rate: Rate) -> dict[str, Any]:
