@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- The gate no longer passes a run in which part of the test never happened: any planned attempt
+  (cases × repeats) without a reply, lost to a technical error or never asked because the run
+  stopped early, makes the result **inconclusive**, and the reason names how many were lost. A
+  real violation still fails the gate.
 - Studio **Runs and Run detail**: every run of the workspace, newest first, with its size, state
   and attack success rate with the 95% interval. A run page has tabs: **Categories** (OWASP
   label, severity, interval bars, stability between repeats; a tool-output attack that rarely

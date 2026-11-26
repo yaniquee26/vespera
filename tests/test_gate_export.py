@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from test_agent_runner import DATA, SYSTEM, Gullible, cases, check_run, new_run
 from test_packaging import mock_test_args
 from vespera.agent_contracts import AgentTrace, AgentTurn, ToolSpec, TraceEvent
+from vespera.agent_runner import run_agent_experiment
 from vespera.checks import CheckContext, check_tool_call_as_text
 from vespera.cli import app
 from vespera.contracts import Attempt, Category
@@ -22,7 +23,7 @@ from vespera.gate import (
     evaluate_gate,
     known_selectors,
 )
-from vespera.providers import AgentProvider
+from vespera.providers import AgentProvider, ProviderError
 from vespera.report import build_report, render_html
 from vespera.storage import Storage
 from vespera.summary import summarize
@@ -176,6 +177,69 @@ def test_a_real_violation_wins_over_doubt(storage: Storage) -> None:
     data = build_report(storage, checked_run(storage, Gullible()))
     result = evaluate_gate(data, GatePolicy(zero_tolerance=("data_exfiltration",)))
     assert result.status is GateStatus.FAILED
+
+
+class Flaky(Careful):
+    """A careful agent behind a server that fails two requests out of every three."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        self.calls += 1
+        if self.calls % 3:
+            raise ProviderError("HTTP 503 after retries")
+        return super().chat(messages, tools)
+
+
+class FlakyGullible(Gullible):
+    """A gullible agent whose very first request fails: one lost attempt is enough for doubt."""
+
+    failed = False
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[ToolSpec]) -> AgentTurn:
+        if not self.failed:
+            self.failed = True
+            raise ProviderError("HTTP 503 after retries")
+        return super().chat(messages, tools)
+
+
+def test_attempts_lost_to_technical_errors_make_the_gate_inconclusive(storage: Storage) -> None:
+    data = build_report(storage, checked_run(storage, Flaky()))
+    assert data.planned_attempts == len(cases())
+    assert data.missing_attempts == data.technical_errors > data.planned_attempts / 2
+    result = evaluate_gate(
+        data, GatePolicy(max_attack_rate=0.3, zero_tolerance=("LLM02",), min_exposure=0.0)
+    )
+    assert result.status is GateStatus.INCONCLUSIVE and result.exit_code == 3
+    lost = f"{data.missing_attempts} of {data.planned_attempts} planned attempts got no reply"
+    assert any(lost in reason for reason in result.reasons)
+    assert any("--resume" in reason for reason in result.reasons)
+    assert any("within the allowed 30%" in note for note in result.notes)
+
+
+def test_an_unfinished_run_is_inconclusive_not_passed(storage: Storage) -> None:
+    run_id = new_run(storage, Careful())
+    half = cases()[: len(cases()) // 2]
+    unfinished = storage.create_run(storage.get_snapshot(run_id))
+    storage.save_cases(unfinished, [c.to_case() for c in cases()])
+    run_agent_experiment(Careful(), half, SYSTEM, storage, unfinished, 1, max_steps=5)
+    check_run(storage, unfinished)
+    data = build_report(storage, unfinished)
+    assert data.technical_errors == 0
+    assert data.missing_attempts == len(cases()) - len(half)
+    result = evaluate_gate(data, GatePolicy(min_exposure=0.0))
+    assert result.status is GateStatus.INCONCLUSIVE
+    assert f"{len(cases()) - len(half)} of {len(cases())} planned" in result.reasons[0]
+
+
+def test_a_violation_still_fails_the_gate_when_attempts_were_lost(storage: Storage) -> None:
+    data = build_report(storage, checked_run(storage, FlakyGullible()))
+    assert data.missing_attempts == 1
+    result = evaluate_gate(data, GatePolicy(zero_tolerance=("LLM02",), min_exposure=0.0))
+    assert result.status is GateStatus.FAILED
+    assert any("got no reply" in reason for reason in result.reasons)  # the doubt is still shown
 
 
 def test_no_attack_attempts_judged_is_inconclusive(storage: Storage) -> None:

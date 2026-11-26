@@ -85,6 +85,8 @@ class ReportData:
     findings: list[FindingView]
     clean: list[tuple[str, Rate]]
     technical_errors: int
+    planned_attempts: int  # cases x repeats
+    missing_attempts: int  # planned but without a reply: a technical error or never asked
     flaky_cases: int
     repeated_cases: int
     language_matches: int
@@ -176,15 +178,21 @@ def build_report(storage: Storage, run_id: int) -> ReportData:
                 known += 1
                 matches += result.value == case_by_id[result.case_id].language.value
 
+    snapshot = storage.get_snapshot(run_id)
+    planned = {(case.id, repeat) for case in cases for repeat in range(1, snapshot.repeats + 1)}
+    answered = {(a.case_id, a.repeat) for a in attempts if a.error is None}
+
     return ReportData(
         run_id=run_id,
         status=storage.get_status(run_id),
-        snapshot=storage.get_snapshot(run_id),
+        snapshot=snapshot,
         attack_rate=attack_rate,
         rows=rows,
         findings=findings,
         clean=clean,
         technical_errors=sum(1 for a in attempts if a.error is not None),
+        planned_attempts=len(planned),
+        missing_attempts=len(planned - answered),
         flaky_cases=sum(s.flaky_cases for s in stable.values()),
         repeated_cases=sum(s.judged_cases for s in stable.values()),
         language_matches=matches,

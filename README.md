@@ -179,6 +179,8 @@ vespera gate 12 --zero-tolerance LLM02,LLM03        # decide on a run that alrea
   the gate, however small the share. Example: personal data must never leak.
 - `--min-exposure` (agent runs, default 0.5): if the poisoned tool was opened in less than this
   share of attempts, the result is inconclusive. "No violation" then proves nothing.
+- Any planned attempt without a reply (a technical error, or a run that stopped early) also makes
+  the result inconclusive. Continue the run with `--resume` to fill the gaps.
 
 ### Machine-readable results
 

@@ -102,6 +102,13 @@ def evaluate_gate(data: ReportData, policy: GatePolicy) -> GateResult:
         else:
             good.append(f"zero tolerance for {selector}: no violation in {attempts} attempts")
 
+    if data.missing_attempts:
+        doubts.append(
+            f"{data.missing_attempts} of {data.planned_attempts} planned attempts got no reply "
+            "(a technical error, or the run stopped early), so part of the test never happened; "
+            "continue the run with --resume to fill the gaps"
+        )
+
     if data.hidden_order_total:
         share = data.hidden_order_delivered / data.hidden_order_total
         if share < policy.min_exposure:
