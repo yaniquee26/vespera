@@ -10,7 +10,6 @@ import sys
 import webbrowser
 from collections import Counter
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -20,13 +19,12 @@ from pydantic import ValidationError
 
 from vespera import __version__
 from vespera.agent_contracts import AgentTurn
-from vespera.agent_runner import MAX_STEPS, run_agent_experiment
+from vespera.agent_runner import MAX_STEPS
 from vespera.agent_scenarios import expand_agent_cases, load_agent_scenarios
 from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bundled
-from vespera.checks import CheckConfigError, run_checks
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.config import TARGET_EXAMPLES, ProjectConfig, TargetConfig, parse_target
-from vespera.contracts import Case, Category, RunInfo, Snapshot
+from vespera.contracts import Category
 from vespera.doctor import all_required_ok, run_all
 from vespera.export import mask, secrets_of
 from vespera.gate import GatePolicy, GateResult, GateStatus
@@ -42,16 +40,22 @@ from vespera.providers import (
     ProviderError,
 )
 from vespera.report import ReportData, ReportError, build_report, render_html
-from vespera.runner import RunAborted, RunSummary, run_experiment
+from vespera.runner import RunSummary
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
 from vespera.services.errors import ServiceError
 from vespera.services.project import build_policy as _policy
 from vespera.services.project import export_paths, has_rules, load_project, resolve_target
 from vespera.services.results import evaluate, junit_xml, results_json
+from vespera.services.runs import (
+    RunRow,
+    check_saved_run,
+    choose_run,
+    execute_agent_run,
+    execute_text_run,
+    list_runs,
+)
 from vespera.services.targets import api_key_for, api_key_from_env
-from vespera.snapshot import build_snapshot, sha256_text
 from vespera.storage import Storage
-from vespera.summary import summarize
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
 
@@ -164,15 +168,8 @@ def _agent_target_provider(target: TargetConfig, mock: bool = False) -> AgentPro
 
 
 def _chosen_run(db: Path, run_id: int | None) -> int:
-    storage = Storage(db)
-    try:
-        chosen = run_id if run_id is not None else storage.latest_run_id()
-        if chosen is None or not storage.run_exists(chosen):
-            typer.echo("[FAIL] no such run")
-            raise typer.Exit(code=1)
-        return chosen
-    finally:
-        storage.close()
+    with Storage(db) as storage:
+        return choose_run(storage, run_id)
 
 
 def _print_gate(result: GateResult) -> None:
@@ -305,31 +302,11 @@ def _is_agent_file(path: Path) -> bool:
 DEFAULT_DB = Path("runs/vespera.db")
 
 
-def _begin_run(
-    storage: Storage, db: Path, snapshot: Snapshot, cases: list[Case], resume: int | None
-) -> int:
-    """Start a new run, or continue an old one if nothing that matters has changed."""
-    if resume is None:
-        run_id = storage.create_run(snapshot)
-        storage.save_cases(run_id, cases)
-        typer.echo(f"Started run {run_id}: {len(cases)} cases x {snapshot.repeats} repeats")
-        return run_id
-    if not storage.run_exists(resume):
-        typer.echo(f"[FAIL] no run with id {resume} in {db}")
-        raise typer.Exit(code=1)
-    old = storage.get_snapshot(resume)
-    same = (
-        old.model == snapshot.model
-        and old.system_prompt_sha256 == snapshot.system_prompt_sha256
-        and old.scenarios_sha256 == snapshot.scenarios_sha256
-        and old.repeats == snapshot.repeats
-        and old.max_steps == snapshot.max_steps
-    )
-    if not same:
-        typer.echo("[FAIL] model, repeats or input files differ from the original run")
-        raise typer.Exit(code=1)
-    typer.echo(f"Resuming run {resume}")
-    return resume
+def _print_start(run_id: int, resumed: bool, cases: int, repeats: int) -> None:
+    if resumed:
+        typer.echo(f"Resuming run {run_id}")
+    else:
+        typer.echo(f"Started run {run_id}: {cases} cases x {repeats} repeats")
 
 
 def _print_progress(done: int, total: int, case_id: str, repeat: int, error: str | None) -> None:
@@ -337,45 +314,12 @@ def _print_progress(done: int, total: int, case_id: str, repeat: int, error: str
     typer.echo(f"[{done}/{total}] {case_id} (repeat {repeat}) {status}")
 
 
-def _read_inputs[T](
-    scenarios: Path, system_prompt: Path, load: Callable[[Path], T], tip: str | None = None
-) -> tuple[T, str, str]:
-    """Load the scenario file and read both input files as text, or stop with a clear message."""
-    try:
-        loaded = load(scenarios)
-        system_text = system_prompt.read_text(encoding="utf-8")
-        scenarios_text = scenarios.read_text(encoding="utf-8")
-    except (ScenarioFileError, OSError) as exc:
-        typer.echo(f"[FAIL] {exc}")
-        if tip and (not scenarios.exists() or not system_prompt.exists()):
-            typer.echo(tip)
-        raise typer.Exit(code=1) from exc
-    return loaded, system_text, scenarios_text
-
-
-def _run_and_save(
-    db: Path,
-    snapshot: Snapshot,
-    cases: list[Case],
-    resume: int | None,
-    execute: Callable[[Storage, int], RunSummary],
-) -> int:
-    """Open the database, start or resume the run, execute it and report. Returns the run id."""
-    storage = Storage(db)
-    try:
-        run_id = _begin_run(storage, db, snapshot, cases, resume)
-        try:
-            summary = execute(storage, run_id)
-        except RunAborted as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
-        typer.echo(
-            f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
-            f"{summary.skipped} skipped. Saved to {db}"
-        )
-        return run_id
-    finally:
-        storage.close()
+def _print_saved(run_id: int, summary: RunSummary, db: Path) -> int:
+    typer.echo(
+        f"[OK] run {run_id}: {summary.attempted} attempts, {summary.errors} errors, "
+        f"{summary.skipped} skipped. Saved to {db}"
+    )
+    return run_id
 
 
 @app.command()
@@ -426,41 +370,22 @@ def _execute_run(
     resume: int | None,
 ) -> int:
     """Load the files, build the provider, ask every case, save everything. Returns the run id."""
-    loaded, system_text, scenarios_text = _read_inputs(scenarios, system_prompt, load_scenarios)
-    cases = expand_cases(loaded)[:limit]
-    provider = make_provider()
-    snapshot = build_snapshot(
-        model=provider.model,
-        temperature=provider.temperature,
-        num_predict=provider.num_predict,
-        repeats=repeats,
-        system_prompt=system_text,
-        scenarios_text=scenarios_text,
+    run_id, summary = execute_text_run(
+        make_provider, scenarios, system_prompt, repeats, limit, db, resume,
+        on_start=_print_start, on_progress=_print_progress,
     )
-
-    return _run_and_save(
-        db,
-        snapshot,
-        cases,
-        resume,
-        lambda storage, run_id: run_experiment(
-            provider, cases, system_text, storage, run_id, repeats, on_progress=_print_progress
-        ),
-    )
+    return _print_saved(run_id, summary, db)
 
 
 @app.command()
+@_reports_service_errors
 def show(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
 ) -> None:
     """Print the saved answers of a run, shortened to one line each."""
-    storage = Storage(db)
-    try:
-        chosen = run_id if run_id is not None else storage.latest_run_id()
-        if chosen is None or not storage.run_exists(chosen):
-            typer.echo("[FAIL] no such run")
-            raise typer.Exit(code=1)
+    with Storage(db) as storage:
+        chosen = choose_run(storage, run_id)
         snapshot = storage.get_snapshot(chosen)
         typer.echo(f"Run {chosen} ({storage.get_status(chosen)}): model {snapshot.model}")
         for attempt in storage.get_attempts(chosen):
@@ -469,11 +394,10 @@ def show(
             typer.echo(
                 f"{attempt.case_id} #{attempt.repeat} ({attempt.latency_ms} ms): {one_line}"
             )
-    finally:
-        storage.close()
 
 
 @app.command()
+@_reports_service_errors
 def check(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
@@ -486,67 +410,41 @@ def check(
     ] = False,
 ) -> None:
     """Run the automatic checks on a saved run and print what the model got wrong."""
-    storage = Storage(db)
-    try:
-        chosen = run_id if run_id is not None else storage.latest_run_id()
-        if chosen is None or not storage.run_exists(chosen):
-            typer.echo("[FAIL] no such run")
-            raise typer.Exit(code=1)
-        prompt_path = system_prompt or Path(
-            "agent_system_prompt.txt" if storage.is_agent_run(chosen) else "system_prompt.txt"
-        )
-        try:
-            system_text = prompt_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            typer.echo(f"[FAIL] cannot read {prompt_path}: {exc}")
-            raise typer.Exit(code=1) from exc
-        snapshot = storage.get_snapshot(chosen)
-        if sha256_text(system_text) != snapshot.system_prompt_sha256:
-            typer.echo("[FAIL] the system prompt differs from the one used in this run")
-            raise typer.Exit(code=1)
-
-        cases = storage.get_cases(chosen)
-        try:
-            results = run_checks(
-                cases, storage.get_attempts(chosen), system_text, storage.get_traces(chosen)
-            )
-        except CheckConfigError as exc:
-            typer.echo(f"[FAIL] {exc}")
-            raise typer.Exit(code=1) from exc
-        storage.save_check_results(chosen, results)
-
-        summary = summarize(cases, results)
-        attempts_checked = sum(item.attempts for item in summary.categories)
-        typer.echo(f"Checked run {chosen} (model {snapshot.model}): {attempts_checked} judged")
-        for item in summary.categories:
-            label = f"{item.violations} / {item.attempts}"
-            typer.echo(f"  {item.category.value:<20} violations {label}")
-        total = summary.language_known
+    with Storage(db) as storage:
+        outcome = check_saved_run(storage, choose_run(storage, run_id), system_prompt)
+    summary = outcome.summary
+    attempts_checked = sum(item.attempts for item in summary.categories)
+    typer.echo(
+        f"Checked run {outcome.run_id} (model {outcome.snapshot.model}): "
+        f"{attempts_checked} judged"
+    )
+    for item in summary.categories:
+        label = f"{item.violations} / {item.attempts}"
+        typer.echo(f"  {item.category.value:<20} violations {label}")
+    total = summary.language_known
+    typer.echo(
+        f"Reply language matched the prompt language: {summary.language_matches} / {total} "
+        f"({summary.language_unknown} undetermined, information only)"
+    )
+    if summary.hidden_order_total:
         typer.echo(
-            f"Reply language matched the prompt language: {summary.language_matches} / {total} "
-            f"({summary.language_unknown} undetermined, information only)"
+            f"Hidden order reached the agent: {summary.hidden_order_delivered} / "
+            f"{summary.hidden_order_total} tool-output attempts "
+            "(in the rest the agent never opened the tool)"
         )
-        if summary.hidden_order_total:
-            typer.echo(
-                f"Hidden order reached the agent: {summary.hidden_order_delivered} / "
-                f"{summary.hidden_order_total} tool-output attempts "
-                "(in the rest the agent never opened the tool)"
-            )
-        if summary.text_tool_calls:
-            typer.echo(
-                f"Tool call written as plain text: {summary.text_tool_calls} / "
-                f"{summary.text_tool_calls_total} attempts (counted as 'tool not called')"
-            )
-        if summary.violations:
-            hidden = secrets_of(cases)
-            typer.echo("Violations:")
-            for v in summary.violations:
-                excerpt = mask(v.excerpt, hidden) if mask_output else v.excerpt
-                typer.echo(f"  {v.case_id} #{v.repeat} [{v.check}] {v.detail}")
-                typer.echo(f"      > {excerpt}")
-        typer.echo(f"[OK] verdicts saved to {db}")
-    finally:
-        storage.close()
+    if summary.text_tool_calls:
+        typer.echo(
+            f"Tool call written as plain text: {summary.text_tool_calls} / "
+            f"{summary.text_tool_calls_total} attempts (counted as 'tool not called')"
+        )
+    if summary.violations:
+        hidden = secrets_of(outcome.cases)
+        typer.echo("Violations:")
+        for v in summary.violations:
+            excerpt = mask(v.excerpt, hidden) if mask_output else v.excerpt
+            typer.echo(f"  {v.case_id} #{v.repeat} [{v.check}] {v.detail}")
+            typer.echo(f"      > {excerpt}")
+    typer.echo(f"[OK] verdicts saved to {db}")
 
 
 @app.command()
@@ -584,15 +482,11 @@ def runs(
     if not db.exists():
         typer.echo(f"No runs yet: {db} does not exist. Start with `vespera test`.")
         return
-    storage = Storage(db)
-    try:
-        listed = storage.list_runs()
-        if not listed:
-            typer.echo("No runs yet. Start with `vespera test`.")
-            return
-        rows = [_run_row(storage, info) for info in listed]
-    finally:
-        storage.close()
+    with Storage(db) as storage:
+        rows = [_run_row(row) for row in list_runs(storage)]
+    if not rows:
+        typer.echo("No runs yet. Start with `vespera test`.")
+        return
     header = ("ID", "STARTED", "MODEL", "MODE", "SIZE", "ATTACKS SUCCEEDED")
     widths = [max(len(row[i]) for row in (header, *rows)) for i in range(len(header))]
     for row in (header, *rows):
@@ -603,27 +497,19 @@ def runs(
                "Decide: vespera gate ID")
 
 
-def _run_row(storage: Storage, info: RunInfo) -> tuple[str, ...]:
-    snapshot = info.snapshot
-    mode = "agent" if snapshot.max_steps is not None else "text"
-    expected = info.cases * snapshot.repeats
-    size = f"{info.cases} x {snapshot.repeats}"
-    if info.attempts < expected:
-        size += f" ({info.attempts}/{expected} done)"
-    if not info.checked:
+def _run_row(row: RunRow) -> tuple[str, ...]:
+    size = f"{row.cases} x {row.repeats}"
+    if row.attempts < row.expected:
+        size += f" ({row.attempts}/{row.expected} done)"
+    rate = row.attack_rate
+    if not row.checked:
         result = "not checked (vespera check)"
+    elif rate is None:
+        result = "no attacks"
     else:
-        try:
-            rate = build_report(storage, info.run_id).attack_rate
-        except ReportError:
-            rate = None
-        result = (
-            "no attacks"
-            if rate is None
-            else f"{rate.k}/{rate.n} = {rate.p:.0%} (95% CI {rate.low:.0%}-{rate.high:.0%})"
-        )
-    started = datetime.fromisoformat(info.started_at).astimezone().strftime("%Y-%m-%d %H:%M")
-    return (str(info.run_id), started, snapshot.model, mode, size, result)
+        result = f"{rate.k}/{rate.n} = {rate.p:.0%} (95% CI {rate.low:.0%}-{rate.high:.0%})"
+    started = row.started.strftime("%Y-%m-%d %H:%M")
+    return (str(row.run_id), started, row.model, row.mode, size, result)
 
 
 def _announce_page(kind: str, path: Path, open_it: bool) -> None:
@@ -1034,37 +920,8 @@ def _execute_agent_run(
     resume: int | None,
 ) -> int:
     """Same as _execute_run, for an agent that uses simulated tools. Returns the run id."""
-    loaded, system_text, scenarios_text = _read_inputs(
-        scenarios,
-        system_prompt,
-        load_agent_scenarios,
-        tip="Tip: `vespera init --agents` copies the example agent files here.",
+    run_id, summary = execute_agent_run(
+        make_provider, scenarios, system_prompt, repeats, limit, max_steps, db, resume,
+        on_start=_print_start, on_progress=_print_progress,
     )
-    cases = expand_agent_cases(loaded)[:limit]
-    provider = make_provider()
-    snapshot = build_snapshot(
-        model=provider.model,
-        temperature=provider.temperature,
-        num_predict=provider.num_predict,
-        repeats=repeats,
-        system_prompt=system_text,
-        scenarios_text=scenarios_text,
-        max_steps=max_steps,
-    )
-
-    return _run_and_save(
-        db,
-        snapshot,
-        [case.to_case() for case in cases],
-        resume,
-        lambda storage, run_id: run_agent_experiment(
-            provider,
-            cases,
-            system_text,
-            storage,
-            run_id,
-            repeats,
-            max_steps=max_steps,
-            on_progress=_print_progress,
-        ),
-    )
+    return _print_saved(run_id, summary, db)

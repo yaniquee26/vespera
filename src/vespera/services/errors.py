@@ -31,3 +31,23 @@ class MissingApiKey(ServiceError):
 
 class ResultError(ServiceError):
     """A report, a gate decision or an export cannot be built for this run."""
+
+
+class InputFileError(ServiceError):
+    """The scenario file or the system prompt file cannot be read or is not valid."""
+
+
+class RunNotFound(ServiceError):
+    """The run asked for is not in the database."""
+
+
+class ResumeMismatch(ServiceError):
+    """A run cannot be continued because something that matters has changed."""
+
+
+class RunStopped(ServiceError):
+    """The run stopped before the end, for example after several errors in a row."""
+
+
+class CheckError(ServiceError):
+    """The checks cannot judge this run, for example because the system prompt differs."""

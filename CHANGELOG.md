@@ -27,6 +27,12 @@
   results, with typed errors; the command line calls it and prints exactly what it printed
   before. A catalog (`vespera/catalog.py`) describes in plain language every target type,
   scenario pack, kind of attack and check, with each check's known false alarms and misses.
+- Internal: runs live in the service layer too (start, resume, check, list), so the command line
+  is a thin layer over it; output unchanged, checked line by line against the previous version.
+  `Storage` works as a context manager and has a concurrent mode (write-ahead log) so a run can
+  be read while it is written. A workspace folder for the coming web app: `--workspace`, then
+  `VESPERA_HOME`, then `~/Vespera`.
+- CI also runs the installed `vespera` command end to end against the mock target.
 
 ## 1.0.0 (2026-11-20)
 First stable release: text and agent testing, statistics, reports, CI gate and machine-readable

@@ -3,6 +3,8 @@
 import json
 import sqlite3
 from pathlib import Path
+from types import TracebackType
+from typing import Self
 
 from vespera.agent_contracts import AgentCategory, AgentTrace
 from vespera.contracts import (
@@ -66,15 +68,43 @@ CREATE TABLE IF NOT EXISTS check_results (
 """
 
 
+BUSY_TIMEOUT_MS = 5000  # how long a reader waits for a writer, and the other way round
+
+
 class Storage:
-    def __init__(self, path: Path | str) -> None:
-        if str(path) != ":memory:":
+    """One connection to the results database. Use one per thread, ideally with `with`.
+
+    `concurrent=True` switches the file to write-ahead logging, so pages can read a run while a
+    background worker is still writing it. The mode stays on the file once it is set.
+    """
+
+    def __init__(self, path: Path | str, *, concurrent: bool = False) -> None:
+        in_memory = str(path) == ":memory:"
+        if not in_memory:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(path))
+        self._db = sqlite3.connect(str(path), timeout=BUSY_TIMEOUT_MS / 1000)
+        if concurrent and not in_memory:
+            self._db.execute("PRAGMA journal_mode=WAL")
+            self._db.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
         self._db.executescript(_SCHEMA)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def close(self) -> None:
         self._db.close()
+
+    def journal_mode(self) -> str:
+        row = self._db.execute("PRAGMA journal_mode").fetchone()
+        return str(row[0])
 
     def create_run(self, snapshot: Snapshot) -> int:
         cursor = self._db.execute(

@@ -29,6 +29,12 @@ jobs:
         # the coverage floor lives here, not in pyproject.toml, so running one test file
         # locally does not fail on coverage
         run: pytest --cov-fail-under=98 --junitxml=junit.xml
+      - name: Smoke test of the installed command
+        # the real `vespera` entry point, the files shipped in the package and the gate,
+        # against the fake model: no Ollama and no network on the CI machine
+        run: |
+          vespera init --no-interactive --directory smoke
+          vespera test mock --no-config --repeats 1 --max-attack-rate 0.3 --scenarios smoke/scenarios_v1.yaml --system-prompt smoke/system_prompt.txt --db smoke/runs/vespera.db
       - name: Upload test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
