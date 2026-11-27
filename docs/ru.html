@@ -70,10 +70,11 @@
 
 <h2>Попробовать</h2>
 <div class="card">
-<pre><code>pip install git+https://github.com/yaniquee26/vespera
-vespera init          # несколько вопросов и готовый vespera.yaml
-vespera test --open   # прогон, проверки, отчёт и гейт</code></pre>
-<p class="note">Без видеокарты: <code>vespera test mock</code>. Локальная модель:
+<pre><code>pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
+vespera init --no-interactive   # примеры сценариев и готовый vespera.yaml
+vespera test demo --open        # фейковый бот, который протекает: находки и проваленный гейт</code></pre>
+<p class="note">Для демо не нужны ни Git, ни модель, ни видеокарта. Своя модель:
+<code>vespera init</code>, затем <code>vespera test --open</code>, или
 <code>vespera test qwen2.5:7b</code>. Вызовы инструментов: добавьте <code>--mode agent</code>.</p>
 </div>
 
@@ -108,7 +109,7 @@ IDNP и секреты выдуманы.</li>
 <footer>Бенчмарк запущен 19 ноября 2026 года на Vespera 0.4.0, локальная Ollama на одной RTX 4060.
 Модели отвечают по-разному от прогона к прогону; повтор должен дать интервалы, пересекающиеся с
 этими.<br>
-Текущий релиз: <a href="https://github.com/yaniquee26/vespera/releases">1.0.0</a> ·
+Текущий релиз: <a href="https://github.com/yaniquee26/vespera/releases">1.1.0</a> ·
 <a href="https://github.com/yaniquee26/vespera">GitHub</a> · лицензия MIT</footer>
 </main>
 </body>

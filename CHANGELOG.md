@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-11-27)
 - Studio texts tell the truth and their commands work as written: the empty Runs page shows two
   commands that start a demo run into Studio's database, every Runs page says which database it
   reads and how to open a project folder (`vespera ui --workspace .`), the Overview no longer

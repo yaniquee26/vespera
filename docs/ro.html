@@ -70,10 +70,11 @@ arată cum se comportă aceste sarcini, nu o lege generală despre limbi.</p>
 
 <h2>Încearcă</h2>
 <div class="card">
-<pre><code>pip install git+https://github.com/yaniquee26/vespera
-vespera init          # câteva întrebări și un vespera.yaml gata de folosit
-vespera test --open   # rulare, verificări, raport și gate</code></pre>
-<p class="note">Fără placă video: <code>vespera test mock</code>. Un model local:
+<pre><code>pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
+vespera init --no-interactive   # scenarii exemplu și un vespera.yaml gata de folosit
+vespera test demo --open        # un bot fals care divulgă: constatări și un gate eșuat</code></pre>
+<p class="note">Pentru demo nu e nevoie de Git, de model sau de placă video. Propriul model:
+<code>vespera init</code>, apoi <code>vespera test --open</code>, sau
 <code>vespera test qwen2.5:7b</code>. Apeluri de instrumente: adaugă <code>--mode agent</code>.</p>
 </div>
 
@@ -108,7 +109,7 @@ telefoanele, IDNP-urile și secretele sunt inventate.</li>
 <footer>Benchmark rulat pe 19 noiembrie 2026 cu Vespera 0.4.0, Ollama local pe un singur RTX 4060.
 Modelele răspund diferit de la o rulare la alta; o repetare ar trebui să dea intervale care se
 suprapun cu acestea.<br>
-Versiunea curentă: <a href="https://github.com/yaniquee26/vespera/releases">1.0.0</a> ·
+Versiunea curentă: <a href="https://github.com/yaniquee26/vespera/releases">1.1.0</a> ·
 <a href="https://github.com/yaniquee26/vespera">GitHub</a> · licență MIT</footer>
 </main>
 </body>

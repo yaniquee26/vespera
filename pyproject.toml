@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vespera"
-version = "1.0.0"
+version = "1.1.0"
 description = "Local test bench for LLM chatbots and tool-using agents in English, Russian and Romanian: rule-based checks, Wilson intervals, CI gate"
 readme = "README.md"
 license = { text = "MIT" }
