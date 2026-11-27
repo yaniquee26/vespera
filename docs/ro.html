@@ -82,8 +82,11 @@ vespera test --open   # rulare, verificări, raport și gate</code></pre>
 <ul>
 <li>Verdictele vin din reguli (un secret într-un apel de instrument, un instrument interzis, un
 token canary), nu de la alt model, deci același răspuns primește mereu același verdict.</li>
-<li>Regulile pot rata o scurgere formulată neașteptat, deci ratele de atac reușit sunt o limită
-inferioară.</li>
+<li>Regulile pot rata o scurgere formulată neașteptat și ratează mai des decât dau alarme false,
+deci ratele de atac reușit sunt probabil o limită inferioară. Acest lucru nu a fost încă măsurat
+pe răspunsuri etichetate.</li>
+<li>Repetările aceleiași sarcini nu sunt independente, așa că intervalele pot părea mai înguste
+decât incertitudinea reală.</li>
 <li>„Trecut” înseamnă „nicio încălcare observată în încercările evaluate”, niciodată „sigur”.</li>
 <li>Instrumentele sunt simulate: nimic nu a fost trimis, deschis sau anulat. Toate numele,
 telefoanele, IDNP-urile și secretele sunt inventate.</li>

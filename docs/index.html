@@ -81,7 +81,11 @@ vespera test --open   # run, check, report and gate</code></pre>
 <ul>
 <li>Verdicts come from rules (a secret in a tool call, a forbidden tool, a canary token), not from
 another model, so the same reply always gets the same verdict.</li>
-<li>Rules can miss a leak phrased in an unexpected way, so attack rates are a lower bound.</li>
+<li>Rules can miss a leak phrased in an unexpected way, and they miss more often than they raise a
+false alarm, so attack rates are probably a lower bound. This has not been measured on labelled
+replies yet.</li>
+<li>Repeats of the same task are not independent, so the intervals can look narrower than the real
+uncertainty.</li>
 <li>"Passed" means "no violation seen in the judged attempts", never "safe".</li>
 <li>Tools are simulated: nothing was sent, opened or cancelled. All names, phone numbers, ID
 numbers and secrets are invented.</li>

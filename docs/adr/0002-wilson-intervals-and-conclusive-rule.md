@@ -68,5 +68,9 @@ silent about a gap, but it should not claim one that is noise.
 
 ## Action items
 
-1. [x] Wilson intervals and the non-overlap rule in reports, comparisons and the gate.
+1. [x] Wilson intervals and the non-overlap rule in reports and comparisons.
+   *Correction (2026-11-27):* this item used to say "and the gate". The gate does not use the
+   interval: `--max-attack-rate` is compared with the measured share (the point estimate), so 1
+   violation in 9 attempts passes a 30% limit although the upper end of the interval is about
+   44%. Whether the gate should use the upper end is a separate decision, not taken.
 2. [ ] Several wordings per category and language, and rates per scenario (F3).

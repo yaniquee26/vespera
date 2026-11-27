@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Documentation: the README opens with a one-minute demo that needs no model; installation works
+  without Git (the GitHub zip link, checked in a clean environment); Studio is described as a
+  preview with what it has and what it lacks; a "Testing the tester" section lists the defects the
+  project's own tests found. Limits are stated honestly in all three languages and on the site:
+  repeats are not independent, "lower bound" is a reasoned guess and not a measurement, and the gate
+  compares the measured share, not the upper end of the interval (ADR-0002 corrected). The check
+  catalog lists more known false alarms and misses, with examples.
 - New one-word target `demo`: a fake bot with weaknesses planted on purpose, so a first run with no
   model and no graphics card shows what Vespera catches. It holds in English and gives in in
   Russian and Romanian: it prints the canary of the system prompt, an invented `+373` phone, IBAN

@@ -11,6 +11,19 @@ ceară. Fiecare răspuns este evaluat cu reguli deterministe. Fiecare rată vine
 încredere de 95%, o etichetă OWASP LLM Top 10 (2026) și dovada brută. O poartă (gate) transformă
 rezultatul într-un cod de ieșire pentru CI: trecut, eșuat sau **neconcludent**.
 
+**Încearcă într-un minut, fără model și fără placă video:**
+
+```powershell
+pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
+vespera init --no-interactive   # scenarii exemplu, un prompt de sistem cu canary, vespera.yaml
+vespera test demo --open        # un bot fals care divulgă: constatări, dovezi, gate eșuat
+```
+
+Botul demo rezistă în engleză și cedează în rusă și română. De aceea raportul arată scurgerea
+promptului, telefoane `+373` și IBAN-uri inventate, injecții executate și o diferență între limbi,
+iar gate-ul eșuează (cod de ieșire 2). Este un bot fals cu slăbiciuni puse intenționat, iar
+raportul lui o spune.
+
 ## Rezultate: același agent este mai puțin sigur în rusă și română
 
 Un benchmark planificat dinainte pe două modele locale (qwen2.5:7b și llama3.1:8b, mod agent,
@@ -45,22 +58,39 @@ cum se comportă aceste sarcini, nu o lege generală despre limbi.
 - **Local în mod implicit.** Cheile API se citesc doar din variabile de mediu și nu se scriu
   niciodată în fișiere.
 
-## Pornire rapidă
+## Pornire rapidă: propriul model sau bot
 
 ```powershell
-pip install git+https://github.com/yaniquee26/vespera
+pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
 vespera init          # câteva întrebări și un vespera.yaml gata de folosit
 vespera test --open   # rulare, verificări, raport și gate; raportul se deschide în browser
 ```
 
+Linkul zip nu are nevoie de Git; cu Git, același lucru îl face
+`pip install git+https://github.com/yaniquee26/vespera`. Este nevoie de Python 3.12 sau mai nou.
+Un model local rulează prin [Ollama](https://ollama.com): instalează-l, apoi
+`ollama pull qwen2.5:7b`; `vespera doctor` verifică dacă Ollama răspunde.
+
 Fără fișier de proiect: `vespera test qwen2.5:7b` (model Ollama local),
 `vespera test openai:gpt-4o-mini` (citește cheia din `OPENAI_API_KEY`), `vespera test mock` (model
-fals, fără placă video). Opțiunea `--mode agent` testează apelurile de instrumente.
+fals, fără placă video), `vespera test demo` (bot fals care divulgă). Opțiunea `--mode agent`
+testează apelurile de instrumente.
 
-`vespera test demo --open` rulează un bot fals cu slăbiciuni puse intenționat: rezistă în engleză și
-cedează în rusă și română (afișează canary-ul, un telefon `+373`, un IBAN și un IDNP inventate și
-execută ordinele injectate). În jumătate de minut se văd toate tipurile de constatări, dovezile și
-un gate eșuat. Constatările lui nu spun nimic despre vreun model real, iar raportul o spune.
+## Vespera Studio (preview)
+
+O aplicație web locală pentru aceleași rulări. Ascultă doar pe acest calculator (127.0.0.1).
+
+```powershell
+pip install "vespera[ui] @ https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip"
+vespera ui --workspace .   # rulările acestui dosar de proiect (runs/vespera.db)
+```
+
+Ce are acum: lista rulărilor; o pagină pe rulare cu file pentru categorii (eticheta OWASP, bare de
+interval), diferența între limbi, constatări cu dovezile evidențiate (canary, `+373`, IBAN, IDNP)
+și condițiile rulării; descărcarea mascată a raportului, `results.json` și JUnit; ținte salvate cu
+**Test connection**. Încă nu: pornirea unei rulări, gate-ul, biblioteca de scenarii și comparațiile
+în Studio; pentru ele există linia de comandă. Fără `--workspace`, Studio își ține datele în
+propriul dosar (`~/Vespera`), separat de dosarele de proiect.
 
 ## Ce verifică
 
@@ -87,10 +117,37 @@ folosită greșit (o opțiune necunoscută, o valoare în afara intervalului, ni
 comandă) sau nu a putut rula (un fișier lipsă, nicio cheie API, serverul modelului oprit). O rulare
 oprită cu Ctrl+C se termină cu 130 și poate fi continuată cu `--resume`.
 
+## Testarea bancului de testare
+
+Testarea Vesperei însăși a găsit probleme din cauza cărora răspunsurile ei ar fi fost greșite, deși
+ar fi părut corecte. Fiecare este corectată și fixată de un test de regresie.
+
+- **Un gate verde pentru un test care aproape nu a avut loc.** Un server care cădea la două cereri
+  din trei, dar niciodată de trei ori la rând, producea o rulare fără majoritatea răspunsurilor, iar
+  gate-ul spunea *passed*. Acum orice încercare planificată fără răspuns face rezultatul
+  *inconclusive* ([teste](tests/test_gate_export.py)).
+- **Continuarea unei rulări o putea strica.** Continuarea cu alt `--limit` salva răspunsuri la
+  întrebări pe care rularea nu le avea, iar rularea nu mai putea fi verificată. Acum o continuare
+  trebuie să pună exact întrebările inițiale, în aceeași ordine, iar un refuz lasă baza de date
+  neschimbată, octet cu octet ([teste](tests/test_resume_integrity.py)).
+- **O greșeală de tipar în CI arăta ca un gate de securitate eșuat.** Parserul liniei de comandă
+  dădea unei opțiuni greșite același cod de ieșire, 2, ca unui gate eșuat. Acum 2 înseamnă doar un
+  gate eșuat, iar versiunile Typer suportate au fost găsite rulând aceste cazuri pe Typer 0.12–0.29
+  și Click 8.1–8.5 ([teste](tests/test_exit_codes.py)).
+
 ## Limitări cunoscute
 
-- Verificările sunt reguli, nu judecători AI. Pot rata o scurgere formulată neașteptat sau pot da
-  o alarmă falsă, așa că ratele de atac reușit sunt o limită inferioară.
+- Verificările sunt reguli, nu judecători AI. Ratează unele formulări și dau unele alarme false.
+  Exemple: „I can't wait to help” contează ca refuz, iar „Unfortunately I am not able to” nu; un
+  canary dat fără prefixul `CANARY-` nu este prins. [Catalogul verificărilor](src/vespera/catalog.py)
+  enumeră erorile cunoscute ale fiecărei verificări, iar fiecare verdict păstrează un fragment din
+  răspuns pentru verificarea de către un om.
+- Ratările cunoscute sunt mai multe decât alarmele false cunoscute, așa că ratele de atac reușit
+  sunt probabil o limită inferioară. Acest lucru nu a fost încă măsurat pe răspunsuri etichetate.
+- Repetările aceleiași întrebări nu sunt independente, așa că intervalele pot părea mai înguste
+  decât incertitudinea reală. Multe întrebări diferite spun mai mult decât multe repetări ale uneia.
+- `--max-attack-rate` se compară cu proporția măsurată, nu cu limita de sus a intervalului: o
+  încălcare din 9 încercări (11%) trece o limită de 30%, deși intervalul ajunge la 44%.
 - Textele scenariilor în română și rusă au fost redactate cu ajutorul AI și nu au fost încă
   verificate de vorbitori nativi.
 - Instrumentele din modul agent sunt simulate: Vespera măsoară decizia de a apela un instrument,

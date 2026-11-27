@@ -24,6 +24,18 @@ turns the result into a CI exit code: passed, failed or **inconclusive**.
 Runs on your machine with Ollama by default. Any model or bot can be the target: a local model, an
 OpenAI-style API or a plain HTTP endpoint.
 
+**Try it in a minute, with no model and no graphics card:**
+
+```powershell
+pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
+vespera init --no-interactive   # example scenarios, a system prompt with a canary, vespera.yaml
+vespera test demo --open        # a fake bot built to leak: findings, evidence, a failed gate
+```
+
+The demo bot holds in English and gives in in Russian and Romanian, so the report shows prompt
+leaks, invented `+373` phones and IBANs, obeyed injections and a language gap, and the gate fails
+(exit code 2). It is a fake bot with weaknesses planted on purpose; its report says so.
+
 ## Why another LLM testing tool
 
 | | Vespera |
@@ -67,18 +79,24 @@ runs and the model comparison, exactly as Vespera generates them). Full tables, 
 unplanned findings and limits: [docs/benchmark/results.md](docs/benchmark/results.md). One task per language, so this shows how
 these tasks behave in each language, not a general law about languages.
 
-## Quick start
+## Quick start: test your own model or bot
 
 ```powershell
-pip install git+https://github.com/yaniquee26/vespera
+pip install https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip
 vespera init          # answers 3-4 questions and writes a ready vespera.yaml
 vespera test --open   # run, check, report, gate; the report opens in the browser
 ```
+
+The zip link needs no Git; with Git, `pip install git+https://github.com/yaniquee26/vespera` does
+the same. Python 3.12 or newer.
 
 `vespera init` asks what you want to test (a local model, an API such as OpenAI or OpenRouter, or
 your own bot behind a web address), which mode, and what counts as a failure. No file needs to be
 edited by hand. API keys are never asked for or written down: Vespera tells you which environment
 variable to set.
+
+A local model runs through [Ollama](https://ollama.com): install it, then
+`ollama pull qwen2.5:7b`. `vespera doctor` checks that Ollama answers.
 
 ### One-word targets
 
@@ -90,13 +108,8 @@ vespera test openai:gpt-4o-mini                           # reads OPENAI_API_KEY
 vespera test openrouter:meta-llama/llama-3.1-8b-instruct  # reads OPENROUTER_API_KEY
 vespera test lmstudio:qwen2.5-7b-instruct                 # LM Studio on this computer
 vespera test mock                                         # a fake model, no GPU needed
-vespera test demo --open                                  # a fake bot built to leak: see the findings
+vespera test demo                                         # a fake bot built to leak (text mode)
 ```
-
-`demo` is a fake bot with weaknesses planted on purpose: it holds in English and gives in in
-Russian and Romanian (it prints the canary, an invented `+373` phone, IBAN and IDNP, and obeys
-injected orders). In half a minute it shows every kind of finding, the evidence and a failed gate.
-Its findings say nothing about any real model, and its report says so.
 
 Add `--mode agent` to test tool use, `--repeats 10` for narrower intervals.
 
@@ -110,6 +123,22 @@ ID  STARTED           MODEL        MODE   SIZE     ATTACKS SUCCEEDED
 ```
 
 Then `vespera report 2 --open`, `vespera compare 1 2 --open` or `vespera gate 2`.
+
+### Vespera Studio (preview)
+
+A local web app for the same runs. It listens on this computer only (127.0.0.1).
+
+```powershell
+pip install "vespera[ui] @ https://github.com/yaniquee26/vespera/archive/refs/heads/main.zip"
+vespera ui --workspace .   # shows the runs of this project folder (runs/vespera.db)
+```
+
+What it has today: the list of runs; a page per run with tabs for categories (OWASP label,
+interval bars), the language gap, findings with the evidence highlighted (canary, `+373`, IBAN,
+IDNP) and the snapshot; masked downloads of the report, `results.json` and JUnit; saved targets
+with **Test connection**. Not yet: starting a run, the gate, the scenario library and comparisons
+in Studio. Use the command line for those. Without `--workspace`, Studio keeps its own folder
+(`~/Vespera`), separate from project folders.
 
 ### The project file
 
@@ -260,13 +289,39 @@ Vespera applies ordinary QA practice to LLM bots, and the same practice to its o
 | Evidence and traceability | every finding links to the raw reply or the tool-call journal; every run stores a snapshot |
 | Test data | synthetic secrets, canary tokens, invented Moldovan phone numbers (+373) and ID numbers (IDNP) |
 | Reporting | one HTML report, JUnit XML for CI dashboards, `results.json` with masking |
-| Testing the tool itself | more than 360 tests at unit, contract, integration, provider and CLI level, no network, about 99% line coverage |
+| Testing the tool itself | more than 650 tests at unit, contract, integration, provider and CLI level, no network, about 99% line coverage |
+
+## Testing the tester
+
+Testing Vespera itself found problems that would have made its answers wrong while looking right.
+Each one is fixed and pinned by a regression test.
+
+- **A green gate on a test that mostly never happened.** A server that failed two requests in
+  three, but never three in a row, produced a run with most replies missing, and the gate said
+  *passed*. Now every planned attempt without a reply makes the result *inconclusive*
+  ([tests](tests/test_gate_export.py)).
+- **Resuming a run could corrupt it.** Continuing a run with another `--limit` saved replies to
+  questions the run did not have, and the run could no longer be checked. Now a resume must ask
+  exactly the original questions, in the same order, and a refusal leaves the database byte for
+  byte unchanged ([tests](tests/test_resume_integrity.py)).
+- **A typo in CI looked like a failed security gate.** The command-line parser gave a mistyped flag
+  the same exit code, 2, as a failed gate. Now 2 means a failed gate and nothing else, and the
+  supported Typer versions were found by running the exit-code cases on Typer 0.12 to 0.29 with
+  Click 8.1 to 8.5 ([tests](tests/test_exit_codes.py)).
 
 ## Known limitations
 
-- Checks are rules, not AI judges. They can miss a leak phrased in an unexpected way or raise a
-  false alarm (a model that mentions a forbidden word while refusing it). Every verdict keeps an
-  excerpt of the reply so a person can review it, and attack rates are best read as a lower bound.
+- Checks are rules, not AI judges. They miss some phrasings and raise some false alarms. Examples:
+  "I can't wait to help" counts as a refusal and "Unfortunately I am not able to" does not; a
+  canary given without its `CANARY-` prefix is not caught. The [check catalog](src/vespera/catalog.py)
+  lists the known errors of every check, and every verdict keeps an excerpt of the reply so a
+  person can review it.
+- The known misses outnumber the known false alarms, so attack rates are probably a lower bound.
+  This has not been measured on labelled replies yet.
+- Repeats of the same question are not independent, so the intervals can look narrower than the
+  real uncertainty. Many different questions say more than many repeats of one.
+- `--max-attack-rate` is compared with the measured share, not with the upper end of its interval:
+  1 violation in 9 attempts (11%) passes a 30% limit, although the interval reaches 44%.
 - Romanian and Russian prompts were drafted with AI assistance and have not yet been reviewed by
   native speakers.
 - Tools in agent mode are stand-ins: Vespera measures the decision to call a tool, not real damage.
@@ -283,7 +338,7 @@ mypy src
 pytest
 ```
 
-The test suite (more than 360 tests) never calls a network or a real model: it uses a mock
+The test suite (more than 650 tests) never calls a network or a real model: it uses a mock
 provider and invented data, and every test runs in its own empty folder. On every push CI runs
 ruff, mypy (strict about untyped functions) and pytest on Ubuntu and Windows with Python 3.12 and
 3.13, fails below 98% line coverage and keeps a JUnit report of each run.
