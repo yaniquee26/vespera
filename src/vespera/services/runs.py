@@ -93,7 +93,31 @@ def begin_run(
             f"the weights of {snapshot.model} changed since the original run "
             f"({before[:12]} -> {now[:12]}): start a new run"
         )
+    _refuse_other_cases(storage, resume, cases)
     return resume, True
+
+
+def _refuse_other_cases(storage: Storage, run_id: int, cases: list[Case]) -> None:
+    """A resume must ask exactly the cases the run was started with, in the same order.
+
+    The cases are saved once, when the run starts, and every attempt points to one of them by id.
+    Other cases (another --limit, for example) would leave attempts the run has no case for. The
+    limit itself is not compared: another limit that gives the same list is fine. Nothing has been
+    written when this refuses.
+    """
+    saved = [case.id for case in storage.get_cases(run_id)]
+    asked = [case.id for case in cases]
+    if saved == asked:
+        return
+    if sorted(saved) == sorted(asked):
+        problem = "the same cases in another order"
+    else:
+        problem = f"{len(saved)} saved, {len(asked)} asked now"
+    raise ResumeMismatch(
+        f"the cases differ from the original run ({problem})",
+        tip=f"Tip: use the same --limit as the original run ({len(saved)} cases), "
+        "or leave out --resume to start a new run.",
+    )
 
 
 def snapshot_for(

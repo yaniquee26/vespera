@@ -167,7 +167,10 @@ A gate turns a report into a decision. It has three outcomes, not two:
 | failed | 2 | a rule was broken (a real violation always wins) |
 | inconclusive | 3 | nothing was broken, but the data cannot show the bot is safe |
 
-Exit code 1 means the command itself was used wrongly (for example, no rule was given).
+Exit code 2 is used for a failed gate and nothing else. Exit code 1 means no decision was made:
+the command was used wrongly (an unknown flag, a value out of range, no rule given, no command at
+all) or could not run (a missing file, no API key, the model server down). A run stopped with
+Ctrl+C ends with 130 and can be continued with `--resume`.
 
 ```powershell
 vespera test --max-attack-rate 0.3                  # run, check, report and decide

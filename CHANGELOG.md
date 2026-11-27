@@ -1,6 +1,19 @@
 # Changelog
 
 ## Unreleased
+- Vespera now needs Typer 0.18 or newer (it said 0.12). With the Click that pip installs today
+  (8.2 and newer), Typer 0.12 does not start, Typer 0.13 to 0.15.0 crash on `--help`, and Typer
+  0.16 stops checking required arguments (from Click 8.3). Checked on Typer 0.12.5 to 0.29.3 with
+  Click 8.1.8 to 8.5.1.
+- Exit code 2 now means a failed gate and nothing else. Errors found by the command-line parser
+  (an unknown flag or command, a value that is not a number or out of range, a missing argument,
+  no command at all) used to end with 2 as well, so in CI a typo looked like a failed security
+  gate; they now end with 1, as the README already promised. The messages are unchanged. Codes 0,
+  3 and 130 (Ctrl+C) are unchanged.
+- A run is resumed only with the cases it was started with, in the same order. Resuming with
+  another `--limit` used to add attempts for cases the run did not have, after which the run could
+  no longer be checked; now it is refused before anything is written, with a tip that names the
+  original number of cases. Another limit that gives the same cases is still allowed.
 - `vespera test --resume N` continues an interrupted run with the settings of `vespera.yaml`, so
   the advice printed after "errors in a row, stopping" now works. Errors that used to end without
   a next step now add a `Tip:` line: `test` before `init`, "no such run", a run id that does not

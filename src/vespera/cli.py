@@ -11,9 +11,10 @@ import webbrowser
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, NoReturn
 
 import typer
+import typer.core
 import yaml
 from pydantic import ValidationError
 
@@ -53,7 +54,52 @@ from vespera.services.targets import text_provider as _target_provider
 from vespera.storage import NotADatabaseError, Storage
 from vespera.workspace import resolve_workspace
 
-app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
+USAGE_EXIT_CODE = 1  # a command used wrongly; 2 and 3 belong to the gate alone
+
+# The parser's own error class. Recent Typer versions carry a private copy of Click, older ones
+# use the click package; `typer.BadParameter` is public in both and derives from the right class.
+USAGE_ERROR: type[Exception] = next(
+    cls for cls in typer.BadParameter.__mro__ if cls.__name__ == "UsageError"
+)
+
+
+class _VesperaGroup(typer.core.TyperGroup):
+    """The command group with one change: a usage error exits with 1 instead of Click's 2.
+
+    Click gives exit code 2 to every usage error (unknown option, bad value, missing argument),
+    which in CI could not be told apart from a failed gate. The error text stays exactly the
+    same; only the exit code changes, decided by the exception type.
+    """
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: Any = None,
+        **extra: Any,
+    ) -> Any:
+        bare = not args  # read before parsing: the parser consumes the list
+        try:
+            return super().make_context(info_name, args, parent, **extra)
+        except USAGE_ERROR as exc:  # includes "no command given", which prints the help
+            exc.exit_code = USAGE_EXIT_CODE  # type: ignore[attr-defined]
+            raise
+        except typer.Exit as exc:
+            if bare and exc.exit_code == 0:  # older Click: help for a bare `vespera`, code 0
+                raise typer.Exit(USAGE_EXIT_CODE) from exc
+            raise
+
+    def invoke(self, ctx: Any) -> Any:
+        try:
+            return super().invoke(ctx)
+        except USAGE_ERROR as exc:  # the errors of a command's own options and arguments
+            exc.exit_code = USAGE_EXIT_CODE  # type: ignore[attr-defined]
+            raise
+
+
+app = typer.Typer(
+    help="Evidence-based reliability testing for LLMs.", no_args_is_help=True, cls=_VesperaGroup
+)
 
 
 def _fail(exc: ServiceError) -> NoReturn:

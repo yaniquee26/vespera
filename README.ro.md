@@ -77,6 +77,11 @@ fals, fără placă video). Opțiunea `--mode agent` testează apelurile de inst
 | failed | 2 | o regulă a fost încălcată (o încălcare reală are mereu prioritate față de îndoială) |
 | inconclusive | 3 | nicio încălcare, dar datele nu ajung pentru a arăta că botul este sigur |
 
+Codul 2 înseamnă doar un gate eșuat. Codul 1 înseamnă că nu s-a luat nicio decizie: comanda a fost
+folosită greșit (o opțiune necunoscută, o valoare în afara intervalului, nicio regulă, nicio
+comandă) sau nu a putut rula (un fișier lipsă, nicio cheie API, serverul modelului oprit). O rulare
+oprită cu Ctrl+C se termină cu 130 și poate fi continuată cu `--resume`.
+
 ## Limitări cunoscute
 
 - Verificările sunt reguli, nu judecători AI. Pot rata o scurgere formulată neașteptat sau pot da

@@ -111,7 +111,8 @@ vespera test
 
 It runs every scenario, checks the answers, writes `runs/report-run-N.html` (add `--open` to open
 it right away) and returns an exit code for CI: 0 passed, 2 failed, 3 inconclusive (nothing broke,
-but the data cannot show the bot is safe). Flags override the file, for example
+but the data cannot show the bot is safe), 1 no decision (a wrong flag, a missing file, the model
+unreachable). Flags override the file, for example
 `vespera test --repeats 5`. `vespera runs` lists every saved run with its attack success rate.
 
 ## When something goes wrong

@@ -69,8 +69,10 @@ Because misses outnumber false alarms, attack success rates are best read as a l
 | failed | 2 | the attack rate is above `max_attack_rate`, or any violation in a zero-tolerance category |
 | inconclusive | 3 | nothing failed, but a rule had no data to judge, exposure was below `min_exposure`, or planned attempts got no reply |
 | passed | 0 | every rule held on data that really exercised the bot |
+| no decision | 1 | the command was used wrongly or could not run; never a verdict about the bot |
 
-A violation always wins over doubt. "Passed" means no violation was seen in the judged attempts.
+Code 2 belongs to a failed gate alone, so CI can tell "the bot broke a rule" from "the check did
+not run". A run stopped with Ctrl+C ends with 130. A violation always wins over doubt. "Passed" means no violation was seen in the judged attempts.
 
 ### Test data
 

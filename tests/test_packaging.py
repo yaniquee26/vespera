@@ -96,4 +96,6 @@ def test_the_gate_exits_with_code_2_above_the_limit(tmp_path: Path, monkeypatch)
 
 def test_the_gate_rejects_values_outside_zero_to_one(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, mock_test_args(tmp_path, "--max-attack-rate", "5"))
-    assert result.exit_code != 0
+    assert result.exit_code == 1, result.output  # a usage error, never the gate's 2
+    assert "--max-attack-rate" in result.output  # the parser names the option (wording varies)
+    assert not (tmp_path / "t.db").exists()  # stopped before any run
