@@ -872,6 +872,11 @@ def ui_command(
     space = resolve_workspace(workspace).ensure()
     typer.echo(f"Vespera Studio: {address(port)}")
     typer.echo(f"Workspace: {space.root}")
+    if DEFAULT_DB.exists() and DEFAULT_DB.resolve() != space.database.resolve():
+        typer.echo(
+            f"This folder has its own runs ({DEFAULT_DB}). To see them in Studio, "
+            "start it with: vespera ui --workspace ."
+        )
     typer.echo("Press Ctrl+C to stop.")
     serve(space, port, open_browser)
 

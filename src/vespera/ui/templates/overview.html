@@ -62,9 +62,10 @@
 
 <section class="panel">
   <h2>Start a run</h2>
-  <p class="muted">Runs start from the command line for now; the runs list and the run wizard come
-  next in Studio.</p>
-  <pre class="code"><code>vespera test mock              # no model needed, a quick look at the reports
+  <p class="muted">Runs start from the command line, in a project folder made by
+  <code>vespera init</code>. Their results appear under <a href="/runs">Runs</a> when Studio is
+  started in that folder with <code>vespera ui --workspace .</code></p>
+  <pre class="code"><code>vespera test demo              # no model needed: a fake bot built to leak
 vespera test qwen2.5:7b        # a local Ollama model
 vespera test --mode agent qwen2.5:7b</code></pre>
 </section>

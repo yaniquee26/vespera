@@ -214,6 +214,8 @@ every verdict keeps the proof, so a person can review it.</li>
 <li>One model, one system prompt, synthetic data. Results describe this setup only.</li>
 <li>The model answers a little differently each time, so repeat runs will not match exactly.
 Wide intervals mean the data is too thin to conclude.</li>
+<li>Repeats of the same question are not independent, so the intervals can look narrower than the
+real uncertainty. Many different questions say more than many repeats of one.</li>
 <li>Prompts were drafted with AI assistance; the Romanian versions have not been reviewed by a
 native speaker.</li>
 {% if d.is_agent %}<li>Tools are simulated stand-ins: nothing real was sent, opened or cancelled. A tool

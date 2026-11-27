@@ -31,8 +31,13 @@
     </tbody>
   </table>
   {% else %}
-  <p class="muted" data-testid="no-runs">No runs yet. Try one against a fake model:</p>
-  <code class="snippet" data-testid="first-run">vespera test mock --no-config --db "{{ database }}"</code>
+  <p class="muted" data-testid="no-runs">No runs yet. Try the demo bot, a fake bot built to leak: in
+  an empty folder, run these two commands, then reload this page.</p>
+  <code class="snippet" data-testid="first-run-init">vespera init --no-interactive</code>
+  <code class="snippet" data-testid="first-run">vespera test demo --db "{{ database }}"</code>
   {% endif %}
+  <p class="muted" data-testid="workspace-hint">Studio shows the runs saved in its workspace,
+  <code>{{ database }}</code>. A project folder keeps its own runs in <code>runs/vespera.db</code>:
+  to see them, start Studio in that folder with <code>vespera ui --workspace .</code></p>
 </section>
 {% endblock %}

@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Studio texts tell the truth and their commands work as written: the empty Runs page shows two
+  commands that start a demo run into Studio's database, every Runs page says which database it
+  reads and how to open a project folder (`vespera ui --workspace .`), the Overview no longer
+  promises a runs list that already exists, and the `check` command of an unchecked run names its
+  system prompt file. `vespera ui` points to the runs of the current folder when it has any. The
+  HTML report's Limitations say that repeats of the same question are not independent.
 - Documentation: the README opens with a one-minute demo that needs no model; installation works
   without Git (the GitHub zip link, checked in a clean environment); Studio is described as a
   preview with what it has and what it lacks; a "Testing the tester" section lists the defects the

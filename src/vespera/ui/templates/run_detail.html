@@ -16,8 +16,9 @@
 {% if d is none %}
 <section class="panel" data-testid="not-checked">
   <p class="alert bad">{{ v.problem }}</p>
-  <p class="muted">The {{ v.attempts }} saved attempts have no verdicts yet. Judge them with the rules:</p>
-  <code class="snippet" data-testid="check-command">vespera check {{ v.run_id }} --db "{{ database }}"</code>
+  <p class="muted">The {{ v.attempts }} saved attempts have no verdicts yet. Judge them with the
+  rules, in the project folder of this run: the checks need the system prompt file the run used.</p>
+  <code class="snippet" data-testid="check-command">vespera check {{ v.run_id }} --db "{{ database }}" --system-prompt {{ "agent_system_prompt.txt" if v.mode == "agent" else "system_prompt.txt" }}</code>
 </section>
 {% include "_snapshot.html" %}
 {% else %}
