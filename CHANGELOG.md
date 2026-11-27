@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- `vespera test --resume N` continues an interrupted run with the settings of `vespera.yaml`, so
+  the advice printed after "errors in a row, stopping" now works. Errors that used to end without
+  a next step now add a `Tip:` line: `test` before `init`, "no such run", a run id that does not
+  exist, resuming with other settings, a changed system prompt. A `--db` file that is not a
+  database gives one `[FAIL]` line instead of a traceback, and a refused connection to Ollama
+  asks whether Ollama is running (`vespera doctor`).
 - The gate no longer passes a run in which part of the test never happened: any planned attempt
   (cases × repeats) without a reply, lost to a technical error or never asked because the run
   stopped early, makes the result **inconclusive**, and the reason names how many were lost. A

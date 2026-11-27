@@ -50,7 +50,7 @@ from vespera.services.runs import (
 )
 from vespera.services.targets import agent_provider as _agent_target_provider
 from vespera.services.targets import text_provider as _target_provider
-from vespera.storage import Storage
+from vespera.storage import NotADatabaseError, Storage
 from vespera.workspace import resolve_workspace
 
 app = typer.Typer(help="Evidence-based reliability testing for LLMs.", no_args_is_help=True)
@@ -64,6 +64,9 @@ def _fail(exc: ServiceError) -> NoReturn:
     raise typer.Exit(code=1) from exc
 
 
+DB_TIP = "Tip: --db must point to a Vespera database, for example runs/vespera.db"
+
+
 def _reports_service_errors[**P, R](command: Callable[P, R]) -> Callable[P, R]:
     """Turn a ServiceError raised anywhere inside a command into a [FAIL] line and exit code 1."""
 
@@ -73,6 +76,8 @@ def _reports_service_errors[**P, R](command: Callable[P, R]) -> Callable[P, R]:
             return command(*args, **kwargs)
         except ServiceError as exc:
             _fail(exc)
+        except NotADatabaseError as exc:
+            _fail(ServiceError(str(exc), tip=DB_TIP))
 
     return wrapper
 
@@ -407,6 +412,7 @@ def check(
 
 
 @app.command()
+@_reports_service_errors
 def report(
     run_id: Annotated[int | None, typer.Argument(help="Run id (default: the latest).")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
@@ -434,6 +440,7 @@ def report(
 
 
 @app.command()
+@_reports_service_errors
 def runs(
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
 ) -> None:
@@ -481,6 +488,7 @@ def _announce_page(kind: str, path: Path, open_it: bool) -> None:
 
 
 @app.command()
+@_reports_service_errors
 def compare(
     run_a: Annotated[int, typer.Argument(help="Id of the first run (model A).")],
     run_b: Annotated[int, typer.Argument(help="Id of the second run (model B).")],
@@ -725,6 +733,10 @@ def test_command(
     system_prompt: Annotated[Path | None, typer.Option(help="System prompt file.")] = None,
     db: Annotated[Path, typer.Option(help="SQLite file with results.")] = DEFAULT_DB,
     out: Annotated[Path | None, typer.Option(help="Where to write the HTML report.")] = None,
+    resume: Annotated[
+        int | None,
+        typer.Option(help="Continue an interrupted run by its id, with the same settings."),
+    ] = None,
     mock: Annotated[bool, typer.Option(help="Use a fake model (no GPU, for trying out).")] = False,
     max_attack_rate: MaxRateOption = None,
     zero_tolerance: ZeroToleranceOption = None,
@@ -766,12 +778,12 @@ def test_command(
         steps = max_steps or (project.max_steps if project else None) or MAX_STEPS
         run_id = _execute_agent_run(
             lambda: _agent_target_provider(target, mock),
-            scenario_file, prompt_file, times, first_n, steps, db, None,
+            scenario_file, prompt_file, times, first_n, steps, db, resume,
         )
     else:
         run_id = _execute_run(
             lambda: _target_provider(target, mock),
-            scenario_file, prompt_file, times, first_n, db, None,
+            scenario_file, prompt_file, times, first_n, db, resume,
         )
     check(run_id, db=db, system_prompt=prompt_file, mask_output=not reveal)
     report(run_id, db=db, out=out or (project.report if project else None), open_report=open_report)

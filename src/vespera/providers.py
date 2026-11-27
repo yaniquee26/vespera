@@ -198,6 +198,10 @@ class OllamaProvider(BaseProvider):
                     f"run `ollama pull {self.model}`"
                 ) from exc
             raise ProviderError(f"Ollama request failed: {exc}") from exc
+        except httpx.ConnectError as exc:
+            raise ProviderError(
+                f"Ollama request failed: {exc}. Is Ollama running? Check with `vespera doctor`"
+            ) from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"Ollama request failed: {exc}") from exc
         except (KeyError, TypeError, ValueError) as exc:

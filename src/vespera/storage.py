@@ -71,6 +71,10 @@ CREATE TABLE IF NOT EXISTS check_results (
 BUSY_TIMEOUT_MS = 5000  # how long a reader waits for a writer, and the other way round
 
 
+class NotADatabaseError(Exception):
+    """The file exists but is not an SQLite database, for example a YAML file given as --db."""
+
+
 class Storage:
     """One connection to the results database. Use one per thread, ideally with `with`.
 
@@ -83,10 +87,16 @@ class Storage:
         if not in_memory:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(path), timeout=BUSY_TIMEOUT_MS / 1000)
-        if concurrent and not in_memory:
-            self._db.execute("PRAGMA journal_mode=WAL")
-            self._db.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-        self._db.executescript(_SCHEMA)
+        try:
+            if concurrent and not in_memory:
+                self._db.execute("PRAGMA journal_mode=WAL")
+                self._db.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+            self._db.executescript(_SCHEMA)
+        except sqlite3.Error as exc:
+            self._db.close()
+            if isinstance(exc, sqlite3.DatabaseError) and "not a database" in str(exc):
+                raise NotADatabaseError(f"{path} is not a Vespera database") from exc
+            raise
 
     def __enter__(self) -> Self:
         return self

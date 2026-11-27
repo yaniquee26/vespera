@@ -33,10 +33,20 @@ from vespera.summary import Summary, summarize
 StartCallback = Callable[[int, bool, int, int], None]
 
 AGENT_FILES_TIP = "Tip: `vespera init --agents` copies the example agent files here."
+FILES_TIP = "Tip: `vespera init` copies the example files here."
+RUNS_TIP = "Tip: list the runs with `vespera runs`; start one with `vespera test`."
+RESUME_TIP = (
+    "Tip: resume with the same model, repeats and files as the original run, "
+    "or leave out --resume to start a new run."
+)
+PROMPT_TIP = (
+    "Tip: pass the system prompt file this run used with --system-prompt "
+    "(the run stored its hash, not its text), or start a new run."
+)
 
 
 def read_inputs[T](
-    scenarios: Path, system_prompt: Path, load: Callable[[Path], T], tip: str | None = None
+    scenarios: Path, system_prompt: Path, load: Callable[[Path], T], tip: str | None = FILES_TIP
 ) -> tuple[T, str, str]:
     """The loaded scenario file and the text of both input files.
 
@@ -64,7 +74,7 @@ def begin_run(
         storage.save_cases(run_id, cases)
         return run_id, False
     if not storage.run_exists(resume):
-        raise RunNotFound(f"no run with id {resume} in {db}")
+        raise RunNotFound(f"no run with id {resume} in {db}", tip=RUNS_TIP)
     old = storage.get_snapshot(resume)
     same = (
         old.model == snapshot.model
@@ -74,7 +84,9 @@ def begin_run(
         and old.max_steps == snapshot.max_steps
     )
     if not same:
-        raise ResumeMismatch("model, repeats or input files differ from the original run")
+        raise ResumeMismatch(
+            "model, repeats or input files differ from the original run", tip=RESUME_TIP
+        )
     before, now = old.weights_digest, snapshot.weights_digest
     if before and now and before != now:  # unknown on either side (older run, remote API): allowed
         raise ResumeMismatch(
@@ -198,7 +210,7 @@ def choose_run(storage: Storage, run_id: int | None) -> int:
     """The run asked for, or the latest one when none is given."""
     chosen = run_id if run_id is not None else storage.latest_run_id()
     if chosen is None or not storage.run_exists(chosen):
-        raise RunNotFound("no such run")
+        raise RunNotFound("no such run", tip=RUNS_TIP)
     return chosen
 
 
@@ -228,7 +240,9 @@ def check_saved_run(storage: Storage, run_id: int, prompt_path: Path | None) -> 
         raise CheckError(f"cannot read {path}: {exc}") from exc
     snapshot = storage.get_snapshot(run_id)
     if sha256_text(system_text) != snapshot.system_prompt_sha256:
-        raise CheckError("the system prompt differs from the one used in this run")
+        raise CheckError(
+            "the system prompt differs from the one used in this run", tip=PROMPT_TIP
+        )
     cases = storage.get_cases(run_id)
     try:
         results = run_checks(
