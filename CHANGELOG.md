@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- New one-word target `demo`: a fake bot with weaknesses planted on purpose, so a first run with no
+  model and no graphics card shows what Vespera catches. It holds in English and gives in in
+  Russian and Romanian: it prints the canary of the system prompt, an invented `+373` phone, IBAN
+  and IDNP, and obeys injected orders; a harmless question gets a normal answer. The CLI, the HTML
+  report and Studio say that a demo run describes a fake bot only. Text mode only; `mock` is
+  unchanged.
+- The default model is `qwen2.5:7b` everywhere (it was `gemma3:4b` in the project template, `run`
+  and `ask`, and `qwen2.5:7b` in the documentation and the setup questions). Existing project
+  files keep the model they name.
 - Vespera now needs Typer 0.18 or newer (it said 0.12). With the Click that pip installs today
   (8.2 and newer), Typer 0.12 does not start, Typer 0.13 to 0.15.0 crash on `--help`, and Typer
   0.16 stops checking required arguments (from Click 8.3). Checked on Typer 0.12.5 to 0.29.3 with

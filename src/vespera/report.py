@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from jinja2 import Environment, select_autoescape
 
 from vespera.contracts import HARMLESS, Category, CheckStatus, Language, Snapshot
+from vespera.demo import DEMO_MODEL
 from vespera.findings import build_findings, split_attempt_id
 from vespera.report_template import TEMPLATE
 from vespera.stats import (
@@ -96,6 +97,11 @@ class ReportData:
     hidden_order_delivered: int
     hidden_order_total: int
     text_tool_calls: int
+
+    @property
+    def is_demo(self) -> bool:
+        """A run of the demo bot: its findings describe a fake bot built to leak."""
+        return self.snapshot.model == DEMO_MODEL
 
 
 def build_report(storage: Storage, run_id: int) -> ReportData:

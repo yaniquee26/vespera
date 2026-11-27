@@ -21,7 +21,7 @@ class TargetConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    type: Literal["ollama", "openai", "http", "mock"] = "ollama"
+    type: Literal["ollama", "openai", "http", "mock", "demo"] = "ollama"
     model: str | None = None  # ollama and openai
     base_url: str | None = None  # openai (and agent runs): the API address
     api_key_env: str | None = None  # NAME of the environment variable with the key
@@ -63,7 +63,7 @@ SERVICES: dict[str, tuple[str, str | None]] = {
 
 TARGET_EXAMPLES = (
     "qwen2.5:7b (local Ollama), ollama:llama3.1:8b, openai:gpt-4o-mini, "
-    "openrouter:meta-llama/llama-3.1-8b-instruct, lmstudio:MODEL, mock"
+    "openrouter:meta-llama/llama-3.1-8b-instruct, lmstudio:MODEL, mock, demo"
 )
 
 
@@ -77,6 +77,8 @@ def parse_target(spec: str) -> TargetConfig:
     text = spec.strip()
     if text == "mock":
         return TargetConfig(type="mock")
+    if text == "demo":
+        return TargetConfig(type="demo")
     if text.startswith(("http://", "https://")):
         raise ConfigError(
             "a web address needs more settings (where the answer is in the reply): "

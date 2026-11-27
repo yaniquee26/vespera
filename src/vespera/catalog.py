@@ -87,6 +87,17 @@ TARGET_KINDS: tuple[TargetKind, ...] = (
         agent_mode=True,
         example="vespera test mock",
     ),
+    TargetKind(
+        key="demo",
+        title="Demo bot that leaks",
+        summary="A fake bot with weaknesses planted on purpose: it holds in English and gives in "
+        "in Russian and Romanian, so one run shows every kind of finding and a failed gate. Its "
+        "findings say nothing about any real model.",
+        fields=(),
+        needs_key="never",
+        agent_mode=False,
+        example="vespera test demo",
+    ),
 )
 
 FIELD_HELP: dict[str, str] = {

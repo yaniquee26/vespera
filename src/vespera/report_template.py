@@ -79,6 +79,12 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 36px; }
 <p class="sub">Run {{ d.run_id }} &middot; model <strong>{{ d.snapshot.model }}</strong>
 &middot; {{ d.snapshot.created_at }} &middot; status: {{ d.status }}</p>
 
+{% if d.is_demo %}<div class="card guide" data-testid="demo-notice">
+<p><strong>Demo run.</strong> The target was the demo bot, a fake bot built to leak in Russian and
+Romanian. Every finding below comes from rules planted on purpose, and all its data is invented.
+The findings say nothing about any real model.</p>
+</div>
+{% endif %}
 <div class="card guide">
 <p><strong>How to read this page.</strong> Vespera asked the model trap questions (attempts to make
 it break its rules) in English, Russian and Romanian. A <em>violation</em> means the model broke a

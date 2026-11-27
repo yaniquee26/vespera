@@ -194,4 +194,4 @@ def test_the_wrapper_keeps_the_signature_typer_reads() -> None:
 
 
 def test_the_default_target_is_a_local_model() -> None:
-    assert DEFAULT_TARGET == TargetConfig(type="ollama", model="gemma3:4b")
+    assert DEFAULT_TARGET == TargetConfig(type="ollama", model="qwen2.5:7b")

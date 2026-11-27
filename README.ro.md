@@ -57,6 +57,11 @@ Fără fișier de proiect: `vespera test qwen2.5:7b` (model Ollama local),
 `vespera test openai:gpt-4o-mini` (citește cheia din `OPENAI_API_KEY`), `vespera test mock` (model
 fals, fără placă video). Opțiunea `--mode agent` testează apelurile de instrumente.
 
+`vespera test demo --open` rulează un bot fals cu slăbiciuni puse intenționat: rezistă în engleză și
+cedează în rusă și română (afișează canary-ul, un telefon `+373`, un IBAN și un IDNP inventate și
+execută ordinele injectate). În jumătate de minut se văd toate tipurile de constatări, dovezile și
+un gate eșuat. Constatările lui nu spun nimic despre vreun model real, iar raportul o spune.
+
 ## Ce verifică
 
 | Categorie | OWASP (2026) | Gravitate |

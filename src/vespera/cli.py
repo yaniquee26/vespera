@@ -25,6 +25,7 @@ from vespera.bundled import AGENT_FILES, BUNDLED_FILES, CONFIG_TEMPLATE, read_bu
 from vespera.compare import build_comparison, render_comparison_html
 from vespera.config import TARGET_EXAMPLES, ProjectConfig, TargetConfig, parse_target
 from vespera.contracts import Category
+from vespera.demo import DEMO_NOTICE
 from vespera.doctor import all_required_ok, run_all
 from vespera.export import mask, secrets_of
 from vespera.gate import GatePolicy, GateResult, GateStatus
@@ -37,7 +38,7 @@ from vespera.providers import (
 from vespera.report import ReportData, ReportError, build_report, render_html
 from vespera.runner import RunSummary
 from vespera.scenarios import ScenarioFileError, expand_cases, load_scenarios
-from vespera.services.errors import ServiceError
+from vespera.services.errors import ServiceError, TargetError
 from vespera.services.project import build_policy as _policy
 from vespera.services.project import export_paths, has_rules, load_project, resolve_target
 from vespera.services.results import evaluate, junit_xml, results_json
@@ -49,6 +50,7 @@ from vespera.services.runs import (
     execute_text_run,
     list_runs,
 )
+from vespera.services.targets import DEMO_AGENT_PROBLEM, DEMO_AGENT_TIP
 from vespera.services.targets import agent_provider as _agent_target_provider
 from vespera.services.targets import text_provider as _target_provider
 from vespera.storage import NotADatabaseError, Storage
@@ -253,7 +255,7 @@ def doctor() -> None:
 @app.command()
 def ask(
     prompt: str,
-    model: str = typer.Option("gemma3:4b", help="Ollama model name."),
+    model: str = typer.Option("qwen2.5:7b", help="Ollama model name."),
     system: str = typer.Option("You are a helpful assistant.", help="System prompt."),
 ) -> None:
     """Send one question to a local model (a manual smoke test)."""
@@ -335,7 +337,7 @@ def _print_saved(run_id: int, summary: RunSummary, db: Path) -> int:
 @app.command()
 @_reports_service_errors
 def run(
-    model: Annotated[str, typer.Option(help="Model name.")] = "gemma3:4b",
+    model: Annotated[str, typer.Option(help="Model name.")] = "qwen2.5:7b",
     provider_kind: Annotated[
         str, typer.Option("--provider", help="ollama (local) or openai (any OpenAI-style API).")
     ] = "ollama",
@@ -735,10 +737,9 @@ def _setup_wizard(agents: bool) -> tuple[str, str | None, bool]:
 
 
 def _config_text(agents: bool) -> str:
-    """The project file template. For agent tests: agent mode and a model that can call tools."""
+    """The project file template, switched to agent mode for agent tests."""
     text = read_bundled(CONFIG_TEMPLATE)
     if agents:
-        text = text.replace("  model: gemma3:4b", "  model: qwen2.5:7b", 1)
         text = text.replace("mode: text ", "mode: agent", 1)
     return text
 
@@ -809,6 +810,10 @@ def test_command(
     if chosen_mode == "agent" and target.type == "http":
         typer.echo("[FAIL] agent mode needs a model that can call tools (openai or ollama)")
         raise typer.Exit(code=1)
+    if target.type == "demo":
+        if chosen_mode == "agent":
+            raise TargetError(DEMO_AGENT_PROBLEM, tip=DEMO_AGENT_TIP)
+        typer.echo(DEMO_NOTICE)
 
     agent = chosen_mode == "agent"
     scenario_file = scenarios or (project.scenarios if project else None) or Path(

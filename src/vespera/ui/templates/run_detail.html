@@ -9,7 +9,8 @@
   <h1>Run #{{ v.run_id }}</h1>
   <p class="lead"><code>{{ v.snapshot.model }}</code> · <span class="tag">{{ v.mode }}</span>
   · {{ v.snapshot.repeats }} repeat{{ "s" if v.snapshot.repeats != 1 }} · started {{ v.snapshot.created_at[:16] | replace("T", " ") }}
-  {% if v.status != "finished" %}· <span class="pill warn" data-testid="run-unfinished">not finished</span>{% endif %}</p>
+  {% if v.status != "finished" %}· <span class="pill warn" data-testid="run-unfinished">not finished</span>{% endif %}
+  {% if v.is_demo %}· <span class="pill warn" data-testid="demo-notice">demo bot: findings say nothing about a real model</span>{% endif %}</p>
 </header>
 
 {% if d is none %}

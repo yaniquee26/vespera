@@ -30,7 +30,7 @@ def write(path: Path, text: str) -> Path:
 
 def test_the_shipped_templates_are_valid_project_files(tmp_path: Path) -> None:
     plain = load_config(write(tmp_path / "a.yaml", _config_text(agents=False)))
-    assert plain.mode == "text" and plain.target.model == "gemma3:4b"
+    assert plain.mode == "text" and plain.target.model == "qwen2.5:7b"
     assert plain.gate.zero_tolerance == ["LLM02"] and plain.exports.junit_xml is not None
     agent = load_config(write(tmp_path / "b.yaml", _config_text(agents=True)))
     assert agent.mode == "agent" and agent.target.model == "qwen2.5:7b"

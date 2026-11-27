@@ -11,7 +11,7 @@ from vespera.config import ConfigError, ProjectConfig, TargetConfig, load_config
 from vespera.gate import GatePolicy
 from vespera.services.errors import ProjectFileError, TargetError
 
-DEFAULT_TARGET = TargetConfig(type="ollama", model="gemma3:4b")
+DEFAULT_TARGET = TargetConfig(type="ollama", model="qwen2.5:7b")
 
 
 def load_project(config: Path | None, no_config: bool) -> ProjectConfig | None:

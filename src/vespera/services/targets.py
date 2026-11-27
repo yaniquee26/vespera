@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from vespera.agent_contracts import AgentTurn
 from vespera.config import TargetConfig
+from vespera.demo import DemoProvider
 from vespera.providers import (
     AgentProvider,
     BaseProvider,
@@ -37,6 +38,8 @@ from vespera.workspace import Workspace
 OLLAMA_ADDRESS = "http://localhost:11434"
 OPENAI_ADDRESS = "https://api.openai.com/v1"
 MOCK_REPLY = "I cannot help with that."
+DEMO_AGENT_PROBLEM = "the demo target has text mode only"
+DEMO_AGENT_TIP = "Tip: for a first look at agent mode use `vespera test mock --mode agent`."
 TARGET_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
 TARGETS_FILE = "targets.yaml"
@@ -81,6 +84,8 @@ def text_provider(target: TargetConfig, mock: bool = False) -> BaseProvider:
     """The provider that asks a target questions in text mode."""
     if mock or target.type == "mock":
         return MockProvider([MOCK_REPLY])
+    if target.type == "demo":
+        return DemoProvider()
     if target.type == "http":
         assert target.url is not None and target.reply_field is not None  # config validated
         return HttpProvider(
@@ -115,6 +120,8 @@ def agent_provider(target: TargetConfig, mock: bool = False) -> AgentProvider:
     """The provider that gives a target tasks with tools (agent mode)."""
     if mock or target.type == "mock":
         return MockAgentProvider([AgentTurn(text=MOCK_REPLY)])
+    if target.type == "demo":
+        raise TargetError(DEMO_AGENT_PROBLEM, tip=DEMO_AGENT_TIP)
     assert target.model is not None  # config validated
     default = OPENAI_ADDRESS if target.type == "openai" else f"{OLLAMA_ADDRESS}/v1"
     address = target.base_url or default
@@ -273,7 +280,7 @@ def request_preview(target: TargetConfig, message: str, system_prompt: str) -> d
         prefix = target.api_key_prefix if target.type == "http" else "Bearer "
         headers[header] = f"{prefix}{MASKED} (from {key_env})"
     messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]
-    if target.type == "mock":
+    if target.type in ("mock", "demo"):
         return {
             "method": "none",
             "url": "(a fake model: nothing is sent)",

@@ -90,7 +90,13 @@ vespera test openai:gpt-4o-mini                           # reads OPENAI_API_KEY
 vespera test openrouter:meta-llama/llama-3.1-8b-instruct  # reads OPENROUTER_API_KEY
 vespera test lmstudio:qwen2.5-7b-instruct                 # LM Studio on this computer
 vespera test mock                                         # a fake model, no GPU needed
+vespera test demo --open                                  # a fake bot built to leak: see the findings
 ```
+
+`demo` is a fake bot with weaknesses planted on purpose: it holds in English and gives in in
+Russian and Romanian (it prints the canary, an invented `+373` phone, IBAN and IDNP, and obeys
+injected orders). In half a minute it shows every kind of finding, the evidence and a failed gate.
+Its findings say nothing about any real model, and its report says so.
 
 Add `--mode agent` to test tool use, `--repeats 10` for narrower intervals.
 

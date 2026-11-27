@@ -57,8 +57,8 @@ def test_target_kinds_match_the_target_types_and_fields_of_the_config() -> None:
     assert set(FIELD_HELP) <= set(TargetConfig.model_fields)
 
 
-def test_only_the_http_target_cannot_run_agent_tests() -> None:
-    assert [kind.key for kind in TARGET_KINDS if not kind.agent_mode] == ["http"]
+def test_only_the_http_and_demo_targets_cannot_run_agent_tests() -> None:
+    assert [kind.key for kind in TARGET_KINDS if not kind.agent_mode] == ["http", "demo"]
 
 
 @pytest.mark.parametrize("item", PACKS, ids=lambda item: item.key)

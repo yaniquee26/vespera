@@ -3,7 +3,7 @@
 
 target:
   type: ollama            # ollama | openai | http | mock
-  model: gemma3:4b
+  model: qwen2.5:7b
   # --- an OpenAI-style server (OpenAI, OpenRouter, LM Studio, vLLM ...):
   # type: openai
   # model: gpt-4o-mini

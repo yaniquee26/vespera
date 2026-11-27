@@ -12,6 +12,7 @@ from vespera.catalog import pack_overview as load_pack_overview
 from vespera.checks import CANARY_RE, find_all_personal_data
 from vespera.config import SERVICES
 from vespera.contracts import Category, Language, Snapshot
+from vespera.demo import DEMO_MODEL
 from vespera.doctor import CheckStatus
 from vespera.export import secrets_of
 from vespera.gate import GatePolicy
@@ -172,6 +173,11 @@ class RunDetailView:
         if self.report is None or not self.report.hidden_order_total:
             return None
         return self.report.hidden_order_delivered / self.report.hidden_order_total
+
+    @property
+    def is_demo(self) -> bool:
+        """A run of the demo bot, built to leak: Studio says so next to the model name."""
+        return self.snapshot.model == DEMO_MODEL
 
     @property
     def under_exposed(self) -> bool:
